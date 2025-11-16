@@ -728,8 +728,9 @@
     }
 
     function deriveSectors(samples, fallbackSectors, lapLength) {
+      if (!samples.length) return [];
+
       const sectors = [];
-      if (!samples.length) return sectors;
       const normalize = (value) => (Number.isFinite(value) && value > 0 ? value : null);
       let currentSector = normalize(samples[0].sector);
       let startDistance = samples[0].distance;
@@ -760,29 +761,39 @@
         });
       }
 
-      if (!sectors.length && fallbackSectors.length) {
-        const totalDistance = lapLength ?? samples[samples.length - 1].distance ?? 0;
-        const minDistance = samples[0].distance ?? 0;
-        const distanceSpan = totalDistance - minDistance;
-        const totalTime = fallbackSectors.reduce((sum, sector) => sum + (sector.time || 0), 0);
-        if (distanceSpan > 0 && totalTime > 0) {
-          let cursor = minDistance;
-          fallbackSectors.forEach((sector, idx) => {
-            const ratio = (sector.time || 0) / totalTime;
-            const end = idx === fallbackSectors.length - 1 ? totalDistance : cursor + ratio * distanceSpan;
-            const label = sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${idx + 1}`;
-            sectors.push({
-              index: idx + 1,
-              label,
-              start: cursor,
-              end
-            });
-            cursor = end;
-          });
-        }
+      if (sectors.length >= 2 || !fallbackSectors.length) {
+        return sectors;
       }
-      sectors.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
-      return sectors;
+
+      const fallback = [];
+      const minDistance = samples[0].distance ?? 0;
+      const maxDistance = lapLength ?? samples[samples.length - 1].distance ?? minDistance;
+      const distanceSpan = maxDistance - minDistance;
+      const validEntries = fallbackSectors
+        .map((sector) => ({
+          label: sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${sector.index ?? ''}`,
+          time: Number(sector.time)
+        }))
+        .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
+      const totalTime = validEntries.reduce((sum, sector) => sum + sector.time, 0);
+      if (!totalTime || distanceSpan <= 0) {
+        return sectors;
+      }
+
+      let cursor = minDistance;
+      validEntries.forEach((sector, idx) => {
+        const ratio = sector.time / totalTime;
+        const end = idx === validEntries.length - 1 ? maxDistance : cursor + ratio * distanceSpan;
+        fallback.push({
+          index: idx + 1,
+          label: sector.label || `S${idx + 1}`,
+          start: cursor,
+          end
+        });
+        cursor = end;
+      });
+
+      return fallback.length ? fallback : sectors;
     }
 
     function formatSeconds(seconds) {
@@ -860,14 +871,14 @@
 
         if (pointerState.active && xValue != null) {
           pointerState.end = xValue;
-          updateLaneSelectionOverlay(chart, pointerState);
+          setOverlayRange(chart, pointerState.start, pointerState.end, 0.4);
         }
       });
 
       chart.canvas.addEventListener('mouseleave', () => {
         setCursorDistance(null);
         if (!pointerState.active) {
-          updateLaneSelectionOverlay(chart, null);
+          syncLaneSelectionOverlay(chart);
         }
       });
 
@@ -878,7 +889,7 @@
         pointerState.active = true;
         pointerState.start = xValue;
         pointerState.end = xValue;
-        updateLaneSelectionOverlay(chart, pointerState);
+        setOverlayRange(chart, pointerState.start, pointerState.end, 0.5);
         setCursorDistance(xValue);
       });
 
@@ -887,7 +898,7 @@
         const xValue = getXValueFromEvent(event);
         if (xValue == null) return;
         pointerState.end = xValue;
-        updateLaneSelectionOverlay(chart, pointerState);
+        setOverlayRange(chart, pointerState.start, pointerState.end, 0.5);
       });
 
       function endLaneDrag(event) {
@@ -898,7 +909,7 @@
         }
         pointerState.active = false;
         try { chart.canvas.releasePointerCapture(event.pointerId); } catch (_) {}
-        updateLaneSelectionOverlay(chart, pointerState);
+        syncLaneSelectionOverlay(chart);
         if (pointerState.start != null && pointerState.end != null) {
           const lap = getActiveLap();
           if (lap) {
@@ -924,10 +935,10 @@
       return chart;
     }
 
-    function updateLaneSelectionOverlay(chart, pointerState) {
+    function setOverlayRange(chart, startValue, endValue, opacity = 0.25) {
       const overlay = chart?._selectionOverlay;
       if (!overlay) return;
-      if (!pointerState || !pointerState.active || pointerState.start == null || pointerState.end == null) {
+      if (startValue == null || endValue == null) {
         overlay.style.opacity = 0;
         return;
       }
@@ -936,17 +947,24 @@
         overlay.style.opacity = 0;
         return;
       }
-      const minVal = Math.min(pointerState.start, pointerState.end);
-      const maxVal = Math.max(pointerState.start, pointerState.end);
-      const left = xScale.getPixelForValue(minVal);
-      const right = xScale.getPixelForValue(maxVal);
+      const left = xScale.getPixelForValue(startValue);
+      const right = xScale.getPixelForValue(endValue);
       if (!Number.isFinite(left) || !Number.isFinite(right)) {
         overlay.style.opacity = 0;
         return;
       }
-      overlay.style.opacity = 1;
+      overlay.style.opacity = opacity;
       overlay.style.left = `${Math.min(left, right)}px`;
       overlay.style.width = `${Math.max(2, Math.abs(right - left))}px`;
+    }
+
+    function syncLaneSelectionOverlay(chart) {
+      const lap = getActiveLap();
+      if (!lap || !state.viewWindow) {
+        setOverlayRange(chart, null, null);
+        return;
+      }
+      setOverlayRange(chart, state.viewWindow.start, state.viewWindow.end, 0.2);
     }
 
     function updateLaneData() {
@@ -987,6 +1005,7 @@
       chart.options.scales.x.min = start;
       chart.options.scales.x.max = end;
       chart.update('none');
+      syncLaneSelectionOverlay(chart);
     }
 
     function findSampleAtDistance(samples, target) {
@@ -1059,13 +1078,17 @@
 
       const paddingX = 30;
       const paddingY = 30;
-      const scaleX = (trackCanvas.width - paddingX * 2) / (maxX - minX || 1);
-      const scaleY = (trackCanvas.height - paddingY * 2) / (maxY - minY || 1);
+      const rangeX = (maxX - minX) || 1;
+      const rangeY = (maxY - minY) || 1;
+      const width = trackCanvas.width - paddingX * 2;
+      const height = trackCanvas.height - paddingY * 2;
 
       function toCanvasCoords(sample) {
         const planeY = getPlanarY(sample);
-        const x = paddingX + (sample.x - minX) * scaleX;
-        const y = paddingY + (planeY - minY) * scaleY;
+        const normX = (sample.x - minX) / rangeX;
+        const normY = (planeY - minY) / rangeY;
+        const x = paddingX + (1 - normX) * width;
+        const y = trackCanvas.height - paddingY - normY * height;
         return { x, y };
       }
 
