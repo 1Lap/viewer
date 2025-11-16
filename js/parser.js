@@ -1,250 +1,255 @@
-function guessDelimiter(text) {
-  const comma = (text.match(/,/g) || []).length;
-  const semi = (text.match(/;/g) || []).length;
-  return semi > comma ? ';' : ',';
-}
-
-function splitLine(line, delimiter) {
-  return line.split(delimiter).map((part) => part.trim());
-}
-
-function normaliseHeader(label) {
-  return label.toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-function toNumber(value) {
-  if (value == null || value === '') return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
-
-export function parseLapFile(text, fileName) {
-  const delimiter = guessDelimiter(text);
-  const lines = text.split(/\r?\n/);
-  let telemetryHeaderIndex = -1;
-  let trackName = null;
-  let carName = null;
-  let driverName = null;
-  let lapTimeSeconds = null;
-  let trackLength = null;
-  let fallbackSectors = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (!raw) continue;
-    const line = raw.trim();
-    if (!line) continue;
-    const lower = line.toLowerCase();
-
-    if (lower.startsWith('player')) {
-      const parts = splitLine(line, delimiter);
-      driverName = parts[2] || parts[1] || driverName;
-      continue;
-    }
-
-    if (lower.startsWith('game,')) {
-      const headers = splitLine(line, delimiter);
-      const values = splitLine(lines[i + 1] || '', delimiter);
-      const idxTrack = headers.findIndex((h) => h.toLowerCase() === 'track');
-      const idxCar = headers.findIndex((h) => h.toLowerCase() === 'car');
-      const idxLapTime = headers.findIndex((h) => h.toLowerCase().startsWith('laptime'));
-      trackName = idxTrack >= 0 ? values[idxTrack] : trackName;
-      carName = idxCar >= 0 ? values[idxCar] : carName;
-      lapTimeSeconds = idxLapTime >= 0 ? toNumber(values[idxLapTime]) : lapTimeSeconds;
-      fallbackSectors = headers
-        .map((header, idx) => ({ header, idx }))
-        .filter(({ header }) => /^s\d+/i.test(header.trim()))
-        .map(({ header, idx }) => ({
-          label: header.split(' ')[0],
-          time: toNumber(values[idx])
-        }))
-        .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
-      i++;
-      continue;
-    }
-
-    if (lower.startsWith('trackid')) {
-      const headers = splitLine(line, delimiter);
-      const values = splitLine(lines[i + 1] || '', delimiter);
-      const idxTrackLength = headers.findIndex((h) => h.toLowerCase().startsWith('tracklen'));
-      trackLength = idxTrackLength >= 0 ? toNumber(values[idxTrackLength]) : trackLength;
-      i++;
-      continue;
-    }
-
-    if (lower.startsWith('lapdistance')) {
-      telemetryHeaderIndex = i;
-      break;
-    }
+(function (app) {
+  function guessDelimiter(text) {
+    const comma = (text.match(/,/g) || []).length;
+    const semi = (text.match(/;/g) || []).length;
+    return semi > comma ? ';' : ',';
   }
 
-  if (telemetryHeaderIndex === -1) {
-    throw new Error('Could not locate telemetry header row (LapDistance, LapTime, ...).');
+  function splitLine(line, delimiter) {
+    return line.split(delimiter).map((part) => part.trim());
   }
 
-  const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);
-  const headerMap = new Map();
-  headerColumns.forEach((col, idx) => {
-    headerMap.set(normaliseHeader(col), idx);
-  });
+  function normaliseHeader(label) {
+    return label.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  }
 
-  const aliases = {
-    lapDistance: ['lapdistancem', 'lapdistance'],
-    lapTime: ['laptimes', 'laptime'],
-    speed: ['speedkmh', 'speed'],
-    throttle: ['throttlepercentage', 'throttlepercent', 'throttle'],
-    brake: ['brakepercentage', 'brakepercent', 'brake'],
-    steer: ['steerpercent', 'steer'],
-    x: ['xm', 'x'],
-    y: ['ym', 'y'],
-    z: ['zm', 'z'],
-    sector: ['sectorint', 'sector'],
-    gear: ['gearint', 'gear'],
-    rpm: ['enginerevsrpm', 'enginerevs', 'rpm']
-  };
+  function toNumber(value) {
+    if (value == null || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
 
-  function getValue(values, aliasList) {
-    for (const alias of aliasList) {
-      if (headerMap.has(alias)) {
-        return values[headerMap.get(alias)];
+  function parseLapFile(text, fileName) {
+    const delimiter = guessDelimiter(text);
+    const lines = text.split(/\r?\n/);
+    let telemetryHeaderIndex = -1;
+    let trackName = null;
+    let carName = null;
+    let driverName = null;
+    let lapTimeSeconds = null;
+    let trackLength = null;
+    let fallbackSectors = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (!raw) continue;
+      const line = raw.trim();
+      if (!line) continue;
+      const lower = line.toLowerCase();
+
+      if (lower.startsWith('player')) {
+        const parts = splitLine(line, delimiter);
+        driverName = parts[2] || parts[1] || driverName;
+        continue;
+      }
+
+      if (lower.startsWith('game,')) {
+        const headers = splitLine(line, delimiter);
+        const values = splitLine(lines[i + 1] || '', delimiter);
+        const idxTrack = headers.findIndex((h) => h.toLowerCase() === 'track');
+        const idxCar = headers.findIndex((h) => h.toLowerCase() === 'car');
+        const idxLapTime = headers.findIndex((h) => h.toLowerCase().startsWith('laptime'));
+        trackName = idxTrack >= 0 ? values[idxTrack] : trackName;
+        carName = idxCar >= 0 ? values[idxCar] : carName;
+        lapTimeSeconds = idxLapTime >= 0 ? toNumber(values[idxLapTime]) : lapTimeSeconds;
+        fallbackSectors = headers
+          .map((header, idx) => ({ header, idx }))
+          .filter(({ header }) => /^s\d+/i.test(header.trim()))
+          .map(({ header, idx }) => ({
+            label: header.split(' ')[0],
+            time: toNumber(values[idx])
+          }))
+          .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
+        i++;
+        continue;
+      }
+
+      if (lower.startsWith('trackid')) {
+        const headers = splitLine(line, delimiter);
+        const values = splitLine(lines[i + 1] || '', delimiter);
+        const idxTrackLength = headers.findIndex((h) => h.toLowerCase().startsWith('tracklen'));
+        trackLength = idxTrackLength >= 0 ? toNumber(values[idxTrackLength]) : trackLength;
+        i++;
+        continue;
+      }
+
+      if (lower.startsWith('lapdistance')) {
+        telemetryHeaderIndex = i;
+        break;
       }
     }
-    return undefined;
-  }
 
-  const samples = [];
-  for (let row = telemetryHeaderIndex + 1; row < lines.length; row++) {
-    const line = lines[row];
-    if (!line) continue;
-    const values = splitLine(line, delimiter);
-    if (values.every((v) => v === '')) continue;
-
-    const distance = toNumber(getValue(values, aliases.lapDistance));
-    const time = toNumber(getValue(values, aliases.lapTime));
-    if (distance == null || time == null) continue;
-
-    const throttle = toNumber(getValue(values, aliases.throttle));
-    const brake = toNumber(getValue(values, aliases.brake));
-    const speed = toNumber(getValue(values, aliases.speed));
-    const steer = toNumber(getValue(values, aliases.steer));
-    const gear = toNumber(getValue(values, aliases.gear));
-    const rpm = toNumber(getValue(values, aliases.rpm));
-    const x = toNumber(getValue(values, aliases.x));
-    const y = toNumber(getValue(values, aliases.y));
-    const z = toNumber(getValue(values, aliases.z));
-    const sectorValue = toNumber(getValue(values, aliases.sector));
-
-    samples.push({
-      distance,
-      time,
-      throttle,
-      brake,
-      speed,
-      steer,
-      gear,
-      rpm,
-      x,
-      y,
-      z,
-      sector: sectorValue,
-    });
-  }
-
-  if (!samples.length) {
-    throw new Error('No telemetry samples were parsed from the file.');
-  }
-
-  samples.sort((a, b) => a.distance - b.distance);
-  const lapLength = trackLength ?? samples[samples.length - 1].distance ?? null;
-  const sectors = deriveSectors(samples, fallbackSectors, lapLength);
-
-  return {
-    id: `lap-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    name: fileName,
-    metadata: {
-      track: trackName || 'Unknown track',
-      car: carName || 'Unknown car',
-      driver: driverName || '—',
-      lapTime: lapTimeSeconds || null,
-      lapLength,
-    },
-    sectors,
-    samples,
-  };
-}
-
-function deriveSectors(samples, fallbackSectors, lapLength) {
-  if (!samples.length) return [];
-
-  const sectors = [];
-  const normalize = (value) => (Number.isFinite(value) ? value : null);
-  let currentSector = normalize(samples[0].sector);
-  let startDistance = samples[0].distance;
-  for (let i = 1; i < samples.length; i++) {
-    const sectorValue = normalize(samples[i].sector);
-    if (sectorValue == null) continue;
-    if (currentSector == null) {
-      currentSector = sectorValue;
-      startDistance = samples[i - 1].distance;
+    if (telemetryHeaderIndex === -1) {
+      throw new Error('Could not locate telemetry header row (LapDistance, LapTime, ...).');
     }
-    if (sectorValue !== currentSector) {
+
+    const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);
+    const headerMap = new Map();
+    headerColumns.forEach((col, idx) => {
+      headerMap.set(normaliseHeader(col), idx);
+    });
+
+    const aliases = {
+      lapDistance: ['lapdistancem', 'lapdistance'],
+      lapTime: ['laptimes', 'laptime'],
+      speed: ['speedkmh', 'speed'],
+      throttle: ['throttlepercentage', 'throttlepercent', 'throttle'],
+      brake: ['brakepercentage', 'brakepercent', 'brake'],
+      steer: ['steerpercent', 'steer'],
+      x: ['xm', 'x'],
+      y: ['ym', 'y'],
+      z: ['zm', 'z'],
+      sector: ['sectorint', 'sector'],
+      gear: ['gearint', 'gear'],
+      rpm: ['enginerevsrpm', 'enginerevs', 'rpm']
+    };
+
+    function getValue(values, aliasList) {
+      for (const alias of aliasList) {
+        if (headerMap.has(alias)) {
+          return values[headerMap.get(alias)];
+        }
+      }
+      return undefined;
+    }
+
+    const samples = [];
+    for (let row = telemetryHeaderIndex + 1; row < lines.length; row++) {
+      const line = lines[row];
+      if (!line) continue;
+      const values = splitLine(line, delimiter);
+      if (values.every((v) => v === '')) continue;
+
+      const distance = toNumber(getValue(values, aliases.lapDistance));
+      const time = toNumber(getValue(values, aliases.lapTime));
+      if (distance == null || time == null) continue;
+
+      const throttle = toNumber(getValue(values, aliases.throttle));
+      const brake = toNumber(getValue(values, aliases.brake));
+      const speed = toNumber(getValue(values, aliases.speed));
+      const steer = toNumber(getValue(values, aliases.steer));
+      const gear = toNumber(getValue(values, aliases.gear));
+      const rpm = toNumber(getValue(values, aliases.rpm));
+      const x = toNumber(getValue(values, aliases.x));
+      const y = toNumber(getValue(values, aliases.y));
+      const z = toNumber(getValue(values, aliases.z));
+      const sectorValue = toNumber(getValue(values, aliases.sector));
+
+      samples.push({
+        distance,
+        time,
+        throttle,
+        brake,
+        speed,
+        steer,
+        gear,
+        rpm,
+        x,
+        y,
+        z,
+        sector: sectorValue
+      });
+    }
+
+    if (!samples.length) {
+      throw new Error('No telemetry samples were parsed from the file.');
+    }
+
+    samples.sort((a, b) => a.distance - b.distance);
+    const lapLength = trackLength ?? samples[samples.length - 1].distance ?? null;
+    const sectors = deriveSectors(samples, fallbackSectors, lapLength);
+
+    return {
+      id: `lap-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name: fileName,
+      metadata: {
+        track: trackName || 'Unknown track',
+        car: carName || 'Unknown car',
+        driver: driverName || '—',
+        lapTime: lapTimeSeconds || null,
+        lapLength
+      },
+      sectors,
+      samples
+    };
+  }
+
+  function deriveSectors(samples, fallbackSectors, lapLength) {
+    if (!samples.length) return [];
+
+    const sectors = [];
+    const normalize = (value) => (Number.isFinite(value) ? value : null);
+    let currentSector = normalize(samples[0].sector);
+    let startDistance = samples[0].distance;
+    for (let i = 1; i < samples.length; i++) {
+      const sectorValue = normalize(samples[i].sector);
+      if (sectorValue == null) continue;
+      if (currentSector == null) {
+        currentSector = sectorValue;
+        startDistance = samples[i - 1].distance;
+      }
+      if (sectorValue !== currentSector) {
+        sectors.push({
+          index: currentSector,
+          label: `S${(currentSector ?? 0) + 1}`,
+          start: startDistance,
+          end: samples[i].distance
+        });
+        currentSector = sectorValue;
+        startDistance = samples[i].distance;
+      }
+    }
+    if (currentSector != null) {
       sectors.push({
         index: currentSector,
         label: `S${(currentSector ?? 0) + 1}`,
         start: startDistance,
-        end: samples[i].distance
+        end: samples[samples.length - 1].distance
       });
-      currentSector = sectorValue;
-      startDistance = samples[i].distance;
     }
-  }
-  if (currentSector != null) {
-    sectors.push({
-      index: currentSector,
-      label: `S${(currentSector ?? 0) + 1}`,
-      start: startDistance,
-      end: samples[samples.length - 1].distance
+
+    if (sectors.length >= 2 || !fallbackSectors.length) {
+      return sectors;
+    }
+
+    const fallback = [];
+    const minDistance = samples[0].distance ?? 0;
+    const maxDistance = lapLength ?? samples[samples.length - 1].distance ?? minDistance;
+    const distanceSpan = maxDistance - minDistance;
+    const validEntries = fallbackSectors
+      .map((sector) => ({
+        label: sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${sector.index ?? ''}`,
+        time: Number(sector.time)
+      }))
+      .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
+    const totalTime = validEntries.reduce((sum, sector) => sum + sector.time, 0);
+    if (!totalTime || distanceSpan <= 0) {
+      return sectors;
+    }
+
+    let cursor = minDistance;
+    validEntries.forEach((sector, idx) => {
+      const ratio = sector.time / totalTime;
+      const end = idx === validEntries.length - 1 ? maxDistance : cursor + ratio * distanceSpan;
+      fallback.push({
+        index: idx + 1,
+        label: sector.label || `S${idx + 1}`,
+        start: cursor,
+        end
+      });
+      cursor = end;
     });
+
+    return fallback.length ? fallback : sectors;
   }
 
-  if (sectors.length >= 2 || !fallbackSectors.length) {
-    return sectors;
+  function formatSeconds(seconds) {
+    if (seconds == null) return '—';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}:${secs.toFixed(3).padStart(6, '0')}` : `${secs.toFixed(3)} s`;
   }
 
-  const fallback = [];
-  const minDistance = samples[0].distance ?? 0;
-  const maxDistance = lapLength ?? samples[samples.length - 1].distance ?? minDistance;
-  const distanceSpan = maxDistance - minDistance;
-  const validEntries = fallbackSectors
-    .map((sector) => ({
-      label: sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${sector.index ?? ''}`,
-      time: Number(sector.time)
-    }))
-    .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
-  const totalTime = validEntries.reduce((sum, sector) => sum + sector.time, 0);
-  if (!totalTime || distanceSpan <= 0) {
-    return sectors;
-  }
-
-  let cursor = minDistance;
-  validEntries.forEach((sector, idx) => {
-    const ratio = sector.time / totalTime;
-    const end = idx === validEntries.length - 1 ? maxDistance : cursor + ratio * distanceSpan;
-    fallback.push({
-      index: idx + 1,
-      label: sector.label || `S${idx + 1}`,
-      start: cursor,
-      end
-    });
-    cursor = end;
-  });
-
-  return fallback.length ? fallback : sectors;
-}
-
-export function formatSeconds(seconds) {
-  if (seconds == null) return '—';
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return mins > 0 ? `${mins}:${secs.toFixed(3).padStart(6, '0')}` : `${secs.toFixed(3)} s`;
-}
+  app.parseLapFile = parseLapFile;
+  app.formatSeconds = formatSeconds;
+})(window.LMUApp = window.LMUApp || {});

@@ -1,27 +1,58 @@
-export const elements = {
-  dropzone: document.getElementById('dropzone'),
-  fileInput: document.getElementById('fileInput'),
-  status: document.getElementById('status'),
-  metaTrack: document.getElementById('metaTrack'),
-  metaCar: document.getElementById('metaCar'),
-  metaDriver: document.getElementById('metaDriver'),
-  metaLapTime: document.getElementById('metaLapTime'),
-  metaSamples: document.getElementById('metaSamples'),
-  lapList: document.getElementById('lapList'),
-  clearLapsBtn: document.getElementById('clearLaps'),
-  trackCanvas: document.getElementById('trackCanvas'),
-  sectorButtons: document.getElementById('sectorButtons'),
-  progressWindow: document.getElementById('progressWindow'),
-  progressTrack: document.querySelector('.progress-track')
-};
+(function (app) {
+  const elements = {
+    dropzone: null,
+    fileInput: null,
+    status: null,
+    metaTrack: null,
+    metaCar: null,
+    metaDriver: null,
+    metaLapTime: null,
+    metaSamples: null,
+    lapList: null,
+    clearLapsBtn: null,
+    trackCanvas: null,
+    sectorButtons: null,
+    progressWindow: null,
+    progressTrack: null
+  };
 
-export const sectorCursor = (() => {
-  const cursor = document.createElement('div');
-  cursor.className = 'progress-cursor';
-  elements.progressTrack.appendChild(cursor);
-  return cursor;
-})();
+  let sectorCursor = null;
 
-export function setStatus(message) {
-  elements.status.textContent = message;
-}
+  function initDomElements() {
+    elements.dropzone = document.getElementById('dropzone');
+    elements.fileInput = document.getElementById('fileInput');
+    elements.status = document.getElementById('status');
+    elements.metaTrack = document.getElementById('metaTrack');
+    elements.metaCar = document.getElementById('metaCar');
+    elements.metaDriver = document.getElementById('metaDriver');
+    elements.metaLapTime = document.getElementById('metaLapTime');
+    elements.metaSamples = document.getElementById('metaSamples');
+    elements.lapList = document.getElementById('lapList');
+    elements.clearLapsBtn = document.getElementById('clearLaps');
+    elements.trackCanvas = document.getElementById('trackCanvas');
+    elements.sectorButtons = document.getElementById('sectorButtons');
+    elements.progressWindow = document.getElementById('progressWindow');
+    elements.progressTrack = document.querySelector('.progress-track');
+
+    if (!sectorCursor && elements.progressTrack) {
+      sectorCursor = document.createElement('div');
+      sectorCursor.className = 'progress-cursor';
+      elements.progressTrack.appendChild(sectorCursor);
+    }
+  }
+
+  function getSectorCursor() {
+    return sectorCursor;
+  }
+
+  function setStatus(message) {
+    if (elements.status) {
+      elements.status.textContent = message;
+    }
+  }
+
+  app.elements = elements;
+  app.initDomElements = initDomElements;
+  app.getSectorCursor = getSectorCursor;
+  app.setStatus = setStatus;
+})(window.LMUApp = window.LMUApp || {});
