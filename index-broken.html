@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LMU Lap Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --panel-bg: #ffffff;
+      --border: #dfe3eb;
+      --text: #1b1f2b;
+      --muted: #60677a;
+      --accent: #2f5bea;
+      --accent-soft: rgba(47, 91, 234, 0.1);
+      --lane-throttle: #33a02c;
+      --lane-brake: #d62728;
+    }
+
+<<<<<<< ours
+=======
+    function deriveSectors(samples, fallbackSectors, lapLength) {
+      const sectors = [];
+      if (!samples.length) return sectors;
+      const normalize = (value) => (Number.isFinite(value) && value > 0 ? value : null);
+      let currentSector = normalize(samples[0].sector);
+      let startDistance = samples[0].distance;
+      for (let i = 1; i < samples.length; i++) {
+        const sectorValue = normalize(samples[i].sector);
+        if (sectorValue == null) continue;
+        if (currentSector == null) {
+          currentSector = sectorValue;
+          startDistance = samples[i - 1].distance;
+        }
+        if (sectorValue !== currentSector) {
+          sectors.push({
+            index: currentSector,
+            label: `S${currentSector}`,
+            start: startDistance,
+            end: samples[i].distance
+          });
+          currentSector = sectorValue;
+          startDistance = samples[i].distance;
+        }
+      }
+      if (currentSector != null) {
+        sectors.push({
+          index: currentSector,
+          label: `S${currentSector}`,
+          start: startDistance,
+          end: samples[samples.length - 1].distance
+        });
+      }
+
+      if (!sectors.length && fallbackSectors.length) {
+        const totalDistance = lapLength ?? samples[samples.length - 1].distance ?? 0;
+        const minDistance = samples[0].distance ?? 0;
+        const distanceSpan = totalDistance - minDistance;
+        const totalTime = fallbackSectors.reduce((sum, sector) => sum + (sector.time || 0), 0);
+        if (distanceSpan > 0 && totalTime > 0) {
+          let cursor = minDistance;
+          fallbackSectors.forEach((sector, idx) => {
+            const ratio = (sector.time || 0) / totalTime;
+            const end = idx === fallbackSectors.length - 1 ? totalDistance : cursor + ratio * distanceSpan;
+            const label = sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${idx + 1}`;
+            sectors.push({
+              index: idx + 1,
+              label,
+              start: cursor,
+              end
+            });
+            cursor = end;
+          });
+        }
+      }
+      return sectors;
+    }
+
+>>>>>>> theirs
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1rem 2rem;
+      background: var(--panel-bg);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+
+    main {
+      flex: 1;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.03);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 1000px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    #dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    #dropzone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    .status {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .lap-info h2 {
+      margin: 0 0 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    .lap-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .lap-meta div {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .lap-meta span {
+      display: block;
+    }
+
+    .lap-meta .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.15rem;
+    }
+
+    .track-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+<<<<<<< ours
+=======
+    .lap-files {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .lap-files header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+      background: none;
+    }
+
+    .lap-files h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .lap-files button.clear {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .lap-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .lap-entry {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-bg);
+      padding: 0.6rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .lap-entry.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+
+    .lap-entry .lap-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: none;
+    }
+
+    .lap-entry .lap-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 0.85rem;
+    }
+
+    .lap-entry .lap-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .lap-entry .lap-meta-line {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .lap-entry .lap-visibility {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .lap-entry .lap-visibility input {
+      accent-color: var(--accent);
+    }
+
+>>>>>>> theirs
+    #trackCanvas {
+      width: 100%;
+      height: 360px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .lanes {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .lane {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 1rem 0.5rem;
+      background: #fff;
+      min-height: 180px;
+    }
+
+    .lane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 0.5rem;
+    }
+
+    .lane-title {
+      font-weight: 600;
+    }
+
+    .lane-hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .lane-canvas {
+      position: relative;
+      height: 140px;
+    }
+
+    .lane-canvas canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .lane-selection {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: rgba(47, 91, 234, 0.15);
+      border: 1px solid var(--accent);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .placeholder {
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .sector-bar {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+<<<<<<< ours
+=======
+      flex-direction: column;
+    }
+
+    .sector-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      width: 100%;
+>>>>>>> theirs
+    }
+
+    .sector-button {
+      border: 1px solid var(--border);
+      background: #fff;
+<<<<<<< ours
+      padding: 0.4rem 0.9rem;
+      border-radius: 999px;
+      cursor: pointer;
+=======
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.8rem;
+>>>>>>> theirs
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .sector-button.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .progress-track {
+      flex: 1;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-window {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      opacity: 0.35;
+    }
+
+    .progress-cursor {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 2px;
+      background: var(--accent);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.1s ease;
+    }
+
+<<<<<<< ours
+=======
+    .sector-placeholder {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+>>>>>>> theirs
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LMU Lap Viewer</h1>
+  </header>
+  <main>
+    <section class="panel">
+      <div id="dropzone">
+        <p><strong>Drop LMU lap file</strong> or click to browse. Files stay in your browser.</p>
+        <p class="status" id="status">No lap loaded yet.</p>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.txt" />
+    </section>
+
+    <section class="panel lap-info" id="lapInfo">
+      <h2>Lap overview</h2>
+      <div class="lap-meta" id="lapMeta">
+        <div>
+          <span class="label">Track</span>
+          <span id="metaTrack">—</span>
+        </div>
+        <div>
+          <span class="label">Car</span>
+          <span id="metaCar">—</span>
+        </div>
+        <div>
+<<<<<<< ours
+=======
+          <span class="label">Driver</span>
+          <span id="metaDriver">—</span>
+        </div>
+        <div>
+>>>>>>> theirs
+          <span class="label">Lap time</span>
+          <span id="metaLapTime">—</span>
+        </div>
+        <div>
+          <span class="label">Samples</span>
+          <span id="metaSamples">—</span>
+        </div>
+      </div>
+    </section>
+
+<<<<<<< ours
+=======
+    <section class="panel lap-files">
+      <header>
+        <h3>Loaded laps</h3>
+        <button type="button" class="clear" id="clearLaps">Clear all</button>
+      </header>
+      <ul class="lap-list" id="lapList">
+        <li class="status">No laps loaded yet.</li>
+      </ul>
+    </section>
+
+>>>>>>> theirs
+    <section class="layout">
+      <div class="track-panel">
+        <div>
+          <h3>Track map</h3>
+          <canvas id="trackCanvas" width="320" height="360"></canvas>
+        </div>
+      </div>
+      <div class="lanes">
+        <div class="lane">
+          <div class="lane-header">
+            <span class="lane-title">Throttle</span>
+            <span class="lane-hint">% vs distance</span>
+          </div>
+          <div class="lane-canvas">
+            <canvas id="throttleLane"></canvas>
+          </div>
+        </div>
+        <div class="lane">
+          <div class="lane-header">
+            <span class="lane-title">Brake</span>
+            <span class="lane-hint">% vs distance</span>
+          </div>
+          <div class="lane-canvas">
+            <canvas id="brakeLane"></canvas>
+          </div>
+        </div>
+        <div class="placeholder">Speed, Gear/RPM, and Steering lanes will appear here once throttle &amp; brake are finalised.</div>
+      </div>
+    </section>
+
+    <section class="panel sector-bar">
+<<<<<<< ours
+      <button class="sector-button active" id="sectorFull" type="button">Sector 1 (whole lap)</button>
+=======
+      <div class="sector-buttons" id="sectorButtons"></div>
+>>>>>>> theirs
+      <div class="progress-track">
+        <div class="progress-window" id="progressWindow" style="left:0%; width:100%"></div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    Pure client-side prototype. Data never leaves your browser.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    const state = {
+      laps: [],
+<<<<<<< ours
+      activeLapId: null,
+      viewWindow: null,
+      cursorDistance: null,
+      sectorCursorDistance: null,
+=======
+      lapVisibility: new Set(),
+      activeLapId: null,
+      viewWindow: null,
+      cursorDistance: null,
+>>>>>>> theirs
+      lapColors: new Map(),
+      trackProjectionLapId: null,
+      trackProjectionPoints: [],
+      charts: {
+        throttle: null,
+        brake: null,
+      }
+    };
+
+    const PALETTE = ['#0ea5e9', '#ef4444', '#10b981', '#f97316', '#8b5cf6', '#facc15', '#1b5f8c', '#f43f5e'];
+
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const statusEl = document.getElementById('status');
+    const metaTrack = document.getElementById('metaTrack');
+    const metaCar = document.getElementById('metaCar');
+<<<<<<< ours
+    const metaLapTime = document.getElementById('metaLapTime');
+    const metaSamples = document.getElementById('metaSamples');
+    const trackCanvas = document.getElementById('trackCanvas');
+    const sectorFullBtn = document.getElementById('sectorFull');
+    const progressWindow = document.getElementById('progressWindow');
+    const progressTrack = document.querySelector('.progress-track');
+=======
+    const metaDriver = document.getElementById('metaDriver');
+    const metaLapTime = document.getElementById('metaLapTime');
+    const metaSamples = document.getElementById('metaSamples');
+    const lapList = document.getElementById('lapList');
+    const clearLapsBtn = document.getElementById('clearLaps');
+    const trackCanvas = document.getElementById('trackCanvas');
+    const progressWindow = document.getElementById('progressWindow');
+    const progressTrack = document.querySelector('.progress-track');
+    const sectorButtons = document.getElementById('sectorButtons');
+>>>>>>> theirs
+    const sectorCursor = document.createElement('div');
+    sectorCursor.className = 'progress-cursor';
+    progressTrack.appendChild(sectorCursor);
+
+    Chart.register({
+      id: 'sharedCursor',
+      afterDatasetsDraw(chart) {
+        if (state.cursorDistance == null) return;
+        const xScale = chart.scales.x;
+        if (!xScale) return;
+        const xPixel = xScale.getPixelForValue(state.cursorDistance);
+        if (Number.isNaN(xPixel)) return;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.strokeStyle = '#11182733';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xPixel, chart.chartArea.top);
+        ctx.lineTo(xPixel, chart.chartArea.bottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+
+    function getLapColor(lapId) {
+      if (!state.lapColors.has(lapId)) {
+        const nextColor = PALETTE[state.lapColors.size % PALETTE.length];
+        state.lapColors.set(lapId, nextColor);
+      }
+      return state.lapColors.get(lapId);
+    }
+
+    function guessDelimiter(text) {
+      const comma = (text.match(/,/g) || []).length;
+      const semi = (text.match(/;/g) || []).length;
+      return semi > comma ? ';' : ',';
+    }
+
+    function splitLine(line, delimiter) {
+      return line.split(delimiter).map(part => part.trim());
+    }
+
+    function normaliseHeader(label) {
+      return label.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+
+    function toNumber(value) {
+      if (value == null || value === '') return null;
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function parseLapFile(text, fileName) {
+      const delimiter = guessDelimiter(text);
+      const lines = text.split(/\r?\n/);
+      let telemetryHeaderIndex = -1;
+      let trackName = null;
+      let carName = null;
+      let lapTimeSeconds = null;
+      let trackLength = null;
+<<<<<<< ours
+=======
+      let driverName = null;
+      let fallbackSectors = [];
+>>>>>>> theirs
+
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        if (!raw) continue;
+        const line = raw.trim();
+        if (!line) continue;
+        const lower = line.toLowerCase();
+
+<<<<<<< ours
+=======
+        if (lower.startsWith('player')) {
+          const parts = splitLine(line, delimiter);
+          driverName = parts[2] || parts[1] || driverName;
+          continue;
+        }
+
+>>>>>>> theirs
+        if (lower.startsWith('game,')) {
+          const headers = splitLine(line, delimiter);
+          const values = splitLine(lines[i + 1] || '', delimiter);
+          const idxTrack = headers.findIndex((h) => h.toLowerCase() === 'track');
+          const idxCar = headers.findIndex((h) => h.toLowerCase() === 'car');
+          const idxLapTime = headers.findIndex((h) => h.toLowerCase().startsWith('laptime'));
+          trackName = idxTrack >= 0 ? values[idxTrack] : trackName;
+          carName = idxCar >= 0 ? values[idxCar] : carName;
+          lapTimeSeconds = idxLapTime >= 0 ? toNumber(values[idxLapTime]) : lapTimeSeconds;
+<<<<<<< ours
+=======
+          fallbackSectors = headers
+            .map((header, idx) => ({ header, idx }))
+            .filter(({ header }) => /^s\d+/i.test(header.trim()))
+            .map(({ header, idx }) => ({
+              label: header.split(' ')[0],
+              time: toNumber(values[idx])
+            }))
+            .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
+>>>>>>> theirs
+          i++;
+          continue;
+        }
+
+        if (lower.startsWith('trackid')) {
+          const headers = splitLine(line, delimiter);
+          const values = splitLine(lines[i + 1] || '', delimiter);
+          const idxTrackLength = headers.findIndex((h) => h.toLowerCase().startsWith('tracklen'));
+          trackLength = idxTrackLength >= 0 ? toNumber(values[idxTrackLength]) : trackLength;
+          i++;
+          continue;
+        }
+
+        if (lower.startsWith('lapdistance')) {
+          telemetryHeaderIndex = i;
+          break;
+        }
+      }
+
+      if (telemetryHeaderIndex === -1) {
+        throw new Error('Could not locate telemetry header row (LapDistance, LapTime, ...).');
+      }
+
+      const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);
+      const headerMap = new Map();
+      headerColumns.forEach((col, idx) => {
+        headerMap.set(normaliseHeader(col), idx);
+      });
+
+      const aliases = {
+        lapDistance: ['lapdistancem', 'lapdistance'],
+        lapTime: ['laptimes', 'laptime'],
+        speed: ['speedkmh', 'speed'],
+        throttle: ['throttlepercentage', 'throttlepercent', 'throttle'],
+        brake: ['brakepercentage', 'brakepercent', 'brake'],
+        steer: ['steerpercent', 'steer'],
+        x: ['xm', 'x'],
+        y: ['ym', 'y'],
+        z: ['zm', 'z'],
+<<<<<<< ours
+=======
+        sector: ['sectorint', 'sector'],
+>>>>>>> theirs
+        gear: ['gearint', 'gear'],
+        rpm: ['enginerevsrpm', 'enginerevs', 'rpm']
+      };
+
+      function getValue(values, aliasList) {
+        for (const alias of aliasList) {
+          if (headerMap.has(alias)) {
+            return values[headerMap.get(alias)];
+          }
+        }
+        return undefined;
+      }
+
+      const samples = [];
+      for (let row = telemetryHeaderIndex + 1; row < lines.length; row++) {
+        const line = lines[row];
+        if (!line) continue;
+        const values = splitLine(line, delimiter);
+        if (values.every((v) => v === '')) continue;
+
+        const distance = toNumber(getValue(values, aliases.lapDistance));
+        const time = toNumber(getValue(values, aliases.lapTime));
+        if (distance == null || time == null) continue;
+
+        const throttle = toNumber(getValue(values, aliases.throttle));
+        const brake = toNumber(getValue(values, aliases.brake));
+        const speed = toNumber(getValue(values, aliases.speed));
+        const steer = toNumber(getValue(values, aliases.steer));
+        const gear = toNumber(getValue(values, aliases.gear));
+        const rpm = toNumber(getValue(values, aliases.rpm));
+        const x = toNumber(getValue(values, aliases.x));
+        const y = toNumber(getValue(values, aliases.y));
+        const z = toNumber(getValue(values, aliases.z));
+<<<<<<< ours
+=======
+        const sector = toNumber(getValue(values, aliases.sector));
+>>>>>>> theirs
+
+        const lapIndex = samples.length;
+
+        samples.push({
+          distance,
+          time,
+          throttle,
+          brake,
+          speed,
+          steer,
+          gear,
+          rpm,
+          x,
+          y,
+          z,
+<<<<<<< ours
+=======
+          sector,
+>>>>>>> theirs
+          lapIndex,
+        });
+      }
+
+      if (!samples.length) {
+        throw new Error('No telemetry samples were parsed from the file.');
+      }
+
+      samples.sort((a, b) => a.distance - b.distance);
+      samples.forEach((sample, index) => {
+        sample.lapIndex = index;
+      });
+      const lapLength = trackLength ?? samples[samples.length - 1].distance ?? null;
+<<<<<<< ours
+=======
+      const sectors = deriveSectors(samples, fallbackSectors, lapLength);
+>>>>>>> theirs
+
+      return {
+        id: `lap-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: fileName,
+        metadata: {
+          track: trackName || 'Unknown track',
+          car: carName || 'Unknown car',
+<<<<<<< ours
+          lapTime: lapTimeSeconds || null,
+          lapLength,
+        },
+=======
+          driver: driverName || '—',
+          lapTime: lapTimeSeconds || null,
+          lapLength,
+        },
+        sectors,
+>>>>>>> theirs
+        samples,
+      };
+    }
+
+    function formatSeconds(seconds) {
+      if (seconds == null) return '—';
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return mins > 0 ? `${mins}:${secs.toFixed(3).padStart(6, '0')}` : `${secs.toFixed(3)} s`;
+    }
+
+    function updateMetadata(lap) {
+      if (!lap) {
+        metaTrack.textContent = '—';
+        metaCar.textContent = '—';
+<<<<<<< ours
+=======
+        metaDriver.textContent = '—';
+>>>>>>> theirs
+        metaLapTime.textContent = '—';
+        metaSamples.textContent = '—';
+        return;
+      }
+      metaTrack.textContent = lap.metadata.track;
+      metaCar.textContent = lap.metadata.car;
+<<<<<<< ours
+=======
+      metaDriver.textContent = lap.metadata.driver || '—';
+>>>>>>> theirs
+      metaLapTime.textContent = formatSeconds(lap.metadata.lapTime);
+      metaSamples.textContent = lap.samples.length.toLocaleString();
+    }
+
+    function ensureChart(key, canvasId) {
+      if (state.charts[key]) return state.charts[key];
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      const overlay = document.createElement('div');
+      overlay.className = 'lane-selection';
+      ctx.canvas.parentElement.appendChild(overlay);
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: [] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          interaction: { mode: 'nearest', intersect: false },
+          scales: {
+            x: { type: 'linear', title: { display: true, text: 'Distance (m)' }, grid: { color: '#eef1f6' } },
+            y: { beginAtZero: true, suggestedMax: 100, title: { display: true, text: '% input' }, grid: { color: '#eef1f6' } }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: true }
+          }
+        }
+      });
+
+      const pointerState = { active: false, start: null, end: null };
+
+      function getXValueFromEvent(event) {
+        const rect = chart.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const xScale = chart.scales.x;
+        if (!xScale) return null;
+        const value = xScale.getValueForPixel(x);
+        return Number.isFinite(value) ? value : null;
+      }
+
+      chart.canvas.addEventListener('mousemove', (event) => {
+        const points = chart.getElementsAtEventForMode(event, 'nearest', { intersect: false }, true);
+        const xValue = getXValueFromEvent(event);
+        if (points.length) {
+          const first = points[0];
+          const point = chart.data.datasets[first.datasetIndex].data[first.index];
+          setCursorDistance(point.x);
+        } else if (xValue != null) {
+          setCursorDistance(xValue);
+        } else {
+          setCursorDistance(null);
+        }
+
+        if (pointerState.active && xValue != null) {
+          pointerState.end = xValue;
+          updateLaneSelectionOverlay(chart, pointerState);
+        }
+      });
+
+      chart.canvas.addEventListener('mouseleave', () => {
+        setCursorDistance(null);
+        if (!pointerState.active) {
+          updateLaneSelectionOverlay(chart, null);
+        }
+      });
+
+      chart.canvas.addEventListener('pointerdown', (event) => {
+        const xValue = getXValueFromEvent(event);
+        if (xValue == null) return;
+        chart.canvas.setPointerCapture(event.pointerId);
+        pointerState.active = true;
+        pointerState.start = xValue;
+        pointerState.end = xValue;
+        updateLaneSelectionOverlay(chart, pointerState);
+        setCursorDistance(xValue);
+      });
+
+      chart.canvas.addEventListener('pointermove', (event) => {
+        if (!pointerState.active) return;
+        const xValue = getXValueFromEvent(event);
+        if (xValue == null) return;
+        pointerState.end = xValue;
+        updateLaneSelectionOverlay(chart, pointerState);
+      });
+
+      function endLaneDrag(event) {
+        if (!pointerState.active) return;
+        const xValue = getXValueFromEvent(event);
+        if (xValue != null) {
+          pointerState.end = xValue;
+        }
+        pointerState.active = false;
+        try { chart.canvas.releasePointerCapture(event.pointerId); } catch (_) {}
+        updateLaneSelectionOverlay(chart, pointerState);
+        if (pointerState.start != null && pointerState.end != null) {
+          const lap = getActiveLap();
+          if (lap) {
+            let start = Math.min(pointerState.start, pointerState.end);
+            let end = Math.max(pointerState.start, pointerState.end);
+            if (Math.abs(end - start) < 0.5) {
+              const center = (start + end) / 2;
+              start = center - 0.25;
+              end = center + 0.25;
+            }
+            setViewWindow(lap, start, end);
+          }
+        }
+        pointerState.start = null;
+        pointerState.end = null;
+        renderTrackMap(getActiveLap());
+      }
+
+      chart.canvas.addEventListener('pointerup', endLaneDrag);
+      chart.canvas.addEventListener('pointerleave', endLaneDrag);
+
+      chart._selectionOverlay = overlay;
+      state.charts[key] = chart;
+      return chart;
+    }
+
+    function updateLaneSelectionOverlay(chart, pointerState) {
+      const overlay = chart?._selectionOverlay;
+      if (!overlay) return;
+      if (!pointerState || !pointerState.active || pointerState.start == null || pointerState.end == null) {
+        overlay.style.opacity = 0;
+        return;
+      }
+      const xScale = chart.scales.x;
+      if (!xScale) {
+        overlay.style.opacity = 0;
+        return;
+      }
+      const minVal = Math.min(pointerState.start, pointerState.end);
+      const maxVal = Math.max(pointerState.start, pointerState.end);
+      const left = xScale.getPixelForValue(minVal);
+      const right = xScale.getPixelForValue(maxVal);
+      if (!Number.isFinite(left) || !Number.isFinite(right)) {
+        overlay.style.opacity = 0;
+        return;
+      }
+      overlay.style.opacity = 1;
+      overlay.style.left = `${Math.min(left, right)}px`;
+      overlay.style.width = `${Math.max(2, Math.abs(right - left))}px`;
+    }
+
+<<<<<<< ours
+    function updateLaneData(lap) {
+      if (!lap) {
+        Object.values(state.charts).forEach((chart) => {
+          if (!chart) return;
+          chart.data.datasets = [];
+          chart.update();
+        });
+        return;
+      }
+
+      const throttleChart = ensureChart('throttle', 'throttleLane');
+      const lapColor = getLapColor(lap.id);
+      throttleChart.data.datasets = [{
+        label: lap.name,
+        borderColor: lapColor,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples.filter((s) => s.throttle != null).map((s) => ({ x: s.distance, y: s.throttle }))
+      }];
+      applyWindowToChart(throttleChart, lap);
+
+      const brakeChart = ensureChart('brake', 'brakeLane');
+      brakeChart.data.datasets = [{
+        label: lap.name,
+        borderColor: lapColor,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples.filter((s) => s.brake != null).map((s) => ({ x: s.distance, y: s.brake }))
+      }];
+      applyWindowToChart(brakeChart, lap);
+    }
+
+    function applyWindowToChart(chart, lap) {
+      if (!chart || !lap) return;
+=======
+    function updateLaneData() {
+      const visibleLaps = state.laps.filter((lap) => state.lapVisibility.has(lap.id));
+
+      const throttleChart = ensureChart('throttle', 'throttleLane');
+      throttleChart.data.datasets = visibleLaps.map((lap) => ({
+        label: lap.name,
+        borderColor: getLapColor(lap.id),
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples
+          .filter((s) => s.throttle != null)
+          .map((s) => ({ x: s.distance, y: s.throttle }))
+      }));
+      applyWindowToChart(throttleChart);
+
+      const brakeChart = ensureChart('brake', 'brakeLane');
+      brakeChart.data.datasets = visibleLaps.map((lap) => ({
+        label: lap.name,
+        borderColor: getLapColor(lap.id),
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples
+          .filter((s) => s.brake != null)
+          .map((s) => ({ x: s.distance, y: s.brake }))
+      }));
+      applyWindowToChart(brakeChart);
+    }
+
+    function applyWindowToChart(chart) {
+      if (!chart) return;
+      const lap = getActiveLap();
+      if (!lap) {
+        chart.update('none');
+        return;
+      }
+>>>>>>> theirs
+      const start = state.viewWindow?.start ?? lap.samples[0].distance;
+      const end = state.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
+      chart.options.scales.x.min = start;
+      chart.options.scales.x.max = end;
+      chart.update('none');
+    }
+
+    function findSampleAtDistance(samples, target) {
+      if (target == null) return null;
+      let left = 0;
+      let right = samples.length - 1;
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const value = samples[mid].distance;
+        if (value === target) return samples[mid];
+        if (value < target) left = mid + 1;
+        else right = mid - 1;
+      }
+      return samples[Math.max(0, Math.min(samples.length - 1, left))];
+    }
+
+    function renderTrackMap(lap) {
+      const ctx = trackCanvas.getContext('2d');
+      ctx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
+<<<<<<< ours
+      if (!lap) {
+=======
+      if (!lap || !state.lapVisibility.size) {
+>>>>>>> theirs
+        ctx.fillStyle = '#adb3c2';
+        ctx.font = '14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Load a lap to view the track map', trackCanvas.width / 2, trackCanvas.height / 2);
+        state.trackProjectionLapId = null;
+        state.trackProjectionPoints = [];
+        return;
+      }
+
+      const getPlanarY = (sample) => (sample.z != null ? sample.z : sample.y);
+<<<<<<< ours
+      const points = lap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+      if (!points.length) {
+=======
+      const activeLap = lap;
+      const activePoints = activeLap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+      if (!activePoints.length) {
+>>>>>>> theirs
+        ctx.fillStyle = '#adb3c2';
+        ctx.font = '14px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Track coordinates unavailable in this export.', trackCanvas.width / 2, trackCanvas.height / 2);
+        state.trackProjectionLapId = null;
+        state.trackProjectionPoints = [];
+        return;
+      }
+
+      const windowStart = state.viewWindow?.start ?? lap.samples[0].distance;
+      const windowEnd = state.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
+      const totalSpan = lap.samples[lap.samples.length - 1].distance - lap.samples[0].distance || 1;
+      const windowSpan = windowEnd - windowStart;
+      const shouldZoom = windowSpan < totalSpan * 0.98;
+<<<<<<< ours
+      const windowPoints = shouldZoom ? points.filter((p) => p.distance >= windowStart && p.distance <= windowEnd) : points;
+      const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : points;
+=======
+      const windowPoints = shouldZoom ? activePoints.filter((p) => p.distance >= windowStart && p.distance <= windowEnd) : activePoints;
+      const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : activePoints;
+>>>>>>> theirs
+
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      drawingPoints.forEach((p) => {
+        const planeY = getPlanarY(p);
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (planeY < minY) minY = planeY;
+        if (planeY > maxY) maxY = planeY;
+      });
+
+      const expand = shouldZoom ? 0.15 : 0.05;
+      const expandX = (maxX - minX) * expand || 1;
+      const expandY = (maxY - minY) * expand || 1;
+      minX -= expandX;
+      maxX += expandX;
+      minY -= expandY;
+      maxY += expandY;
+
+      const paddingX = 30;
+      const paddingY = 30;
+      const scaleX = (trackCanvas.width - paddingX * 2) / (maxX - minX || 1);
+      const scaleY = (trackCanvas.height - paddingY * 2) / (maxY - minY || 1);
+
+      function toCanvasCoords(sample) {
+        const planeY = getPlanarY(sample);
+        const x = paddingX + (sample.x - minX) * scaleX;
+        const y = trackCanvas.height - paddingY - (planeY - minY) * scaleY;
+        return { x, y };
+      }
+
+<<<<<<< ours
+      const lapColor = getLapColor(lap.id);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = lapColor;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      points.forEach((sample, idx) => {
+=======
+      state.laps.forEach((lapItem) => {
+        if (!state.lapVisibility.has(lapItem.id)) return;
+        const lapPoints = lapItem.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+        if (!lapPoints.length) return;
+        const lapColor = getLapColor(lapItem.id);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = lapColor;
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        lapPoints.forEach((sample, idx) => {
+          const { x, y } = toCanvasCoords(sample);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      ctx.globalAlpha = 1;
+      const activeColor = getLapColor(activeLap.id);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = activeColor;
+      ctx.beginPath();
+      activePoints.forEach((sample, idx) => {
+>>>>>>> theirs
+        const { x, y } = toCanvasCoords(sample);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+<<<<<<< ours
+      ctx.globalAlpha = 1;
+
+      if (windowEnd > windowStart) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = lapColor;
+        ctx.globalAlpha = 0.95;
+        ctx.beginPath();
+        let drawing = false;
+        points.forEach((sample) => {
+=======
+
+      if (windowEnd > windowStart) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = activeColor;
+        ctx.globalAlpha = 0.95;
+        ctx.beginPath();
+        let drawing = false;
+        activePoints.forEach((sample) => {
+>>>>>>> theirs
+          if (sample.distance < windowStart || sample.distance > windowEnd) {
+            drawing = false;
+            return;
+          }
+          const { x, y } = toCanvasCoords(sample);
+          if (!drawing) {
+            ctx.moveTo(x, y);
+            drawing = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      state.trackProjectionLapId = lap.id;
+<<<<<<< ours
+      state.trackProjectionPoints = lap.samples.map((sample) => {
+=======
+      state.trackProjectionPoints = activeLap.samples.map((sample) => {
+>>>>>>> theirs
+        const planeY = getPlanarY(sample);
+        if (sample.x == null || planeY == null) return null;
+        const { x, y } = toCanvasCoords(sample);
+        return { distance: sample.distance, x, y };
+      }).filter(Boolean);
+
+      if (state.cursorDistance != null) {
+        const sample = findSampleAtDistance(lap.samples, state.cursorDistance);
+        const planeY = sample ? getPlanarY(sample) : null;
+        if (sample && sample.x != null && planeY != null) {
+          const { x, y } = toCanvasCoords(sample);
+          ctx.fillStyle = lapColor;
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    function updateProgressWindow(lap) {
+      if (!lap) {
+        progressWindow.style.left = '0%';
+        progressWindow.style.width = '0%';
+        sectorCursor.style.opacity = 0;
+        return;
+      }
+      const total = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+      const minDistance = lap.samples[0].distance;
+      const span = (total - minDistance) || total || 1;
+      const start = (state.viewWindow?.start ?? minDistance) - minDistance;
+      const end = (state.viewWindow?.end ?? total) - minDistance;
+      const left = (start / span) * 100;
+      const width = ((end - start) / span) * 100;
+      progressWindow.style.left = `${Math.max(0, Math.min(100, left))}%`;
+      progressWindow.style.width = `${Math.max(0, Math.min(100, width))}%`;
+    }
+
+    function updateSectorCursor(distance) {
+      const lap = getActiveLap();
+      if (!lap || distance == null) {
+        sectorCursor.style.opacity = 0;
+        return;
+      }
+      const minDistance = lap.samples[0].distance;
+      const maxDistance = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+      const ratio = (distance - minDistance) / ((maxDistance - minDistance) || 1);
+      sectorCursor.style.opacity = 1;
+      sectorCursor.style.left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+    }
+
+<<<<<<< ours
+=======
+    function renderSectorButtons(lap) {
+      sectorButtons.innerHTML = '';
+      if (!lap) {
+        const span = document.createElement('span');
+        span.className = 'sector-placeholder';
+        span.textContent = 'Load a lap to view sectors.';
+        sectorButtons.appendChild(span);
+        return;
+      }
+      const startDistance = lap.samples[0]?.distance ?? 0;
+      const endDistance = (lap.metadata.lapLength || lap.samples[lap.samples.length - 1]?.distance) ?? startDistance;
+      const viewStart = state.viewWindow?.start ?? startDistance;
+      const viewEnd = state.viewWindow?.end ?? endDistance;
+
+      const buttons = [];
+      const allButton = createSectorButton('All', startDistance, endDistance, isWindowMatch(viewStart, viewEnd, startDistance, endDistance));
+      buttons.push(allButton);
+
+      const sectorEntries = lap.sectors || [];
+      sectorEntries.forEach((sector, idx) => {
+        const label = sector.label || `S${sector.index ?? idx + 1}`;
+        const start = sector.start ?? startDistance;
+        const end = sector.end ?? endDistance;
+        buttons.push(createSectorButton(label, start, end, isWindowMatch(viewStart, viewEnd, start, end)));
+      });
+
+      buttons.forEach((button) => sectorButtons.appendChild(button));
+
+      if (sectorEntries.length === 0) {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'sector-placeholder';
+        placeholder.textContent = 'No sector data available for this lap.';
+        sectorButtons.appendChild(placeholder);
+      }
+    }
+
+    function createSectorButton(label, start, end, isActive) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `sector-button${isActive ? ' active' : ''}`;
+      button.dataset.start = start;
+      button.dataset.end = end;
+      button.textContent = label;
+      return button;
+    }
+
+    function isWindowMatch(viewStart, viewEnd, targetStart, targetEnd) {
+      const tolerance = Math.max(1, (targetEnd - targetStart) * 0.01);
+      return Math.abs(viewStart - targetStart) <= tolerance && Math.abs(viewEnd - targetEnd) <= tolerance;
+    }
+
+>>>>>>> theirs
+    function setViewWindow(lap, start, end) {
+      if (!lap) {
+        state.viewWindow = null;
+        return;
+      }
+      const minDistance = lap.samples[0].distance;
+      const maxDistance = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+      const windowStart = start ?? minDistance;
+      const windowEnd = end ?? maxDistance;
+      state.viewWindow = {
+        start: Math.max(minDistance, Math.min(maxDistance, windowStart)),
+        end: Math.max(minDistance, Math.min(maxDistance, windowEnd))
+      };
+      updateProgressWindow(lap);
+      renderTrackMap(lap);
+<<<<<<< ours
+      Object.values(state.charts).forEach((chart) => applyWindowToChart(chart, lap));
+=======
+      renderSectorButtons(lap);
+      Object.values(state.charts).forEach((chart) => applyWindowToChart(chart));
+>>>>>>> theirs
+    }
+
+    function setCursorDistance(distance) {
+      state.cursorDistance = distance;
+      const lap = getActiveLap();
+      renderTrackMap(lap);
+      updateSectorCursor(distance);
+      Object.values(state.charts).forEach((chart) => chart && chart.update('none'));
+    }
+
+    function getActiveLap() {
+      return state.laps.find((lap) => lap.id === state.activeLapId) || null;
+    }
+
+<<<<<<< ours
+    async function handleFiles(files) {
+      if (!files.length) return;
+      setStatus('Loading...');
+=======
+    function activateLap(lapId) {
+      const lap = state.laps.find((l) => l.id === lapId);
+      if (!lap) return;
+      state.activeLapId = lapId;
+      state.cursorDistance = null;
+      state.lapVisibility.add(lapId);
+      setViewWindow(lap);
+      updateMetadata(lap);
+      updateLaneData();
+    }
+
+    function renderLapList() {
+      lapList.innerHTML = '';
+      if (!state.laps.length) {
+        const li = document.createElement('li');
+        li.className = 'status';
+        li.textContent = 'No laps loaded yet.';
+        lapList.appendChild(li);
+        return;
+      }
+      state.laps.forEach((lap) => {
+        const li = document.createElement('li');
+        const entry = document.createElement('button');
+        entry.type = 'button';
+        entry.className = `lap-entry${lap.id === state.activeLapId ? ' active' : ''}`;
+        entry.dataset.lapId = lap.id;
+        const color = getLapColor(lap.id);
+        const driverLabel = lap.metadata.driver && lap.metadata.driver !== '—' ? lap.metadata.driver : 'Unknown driver';
+        const lapTimeLabel = lap.metadata.lapTime != null ? formatSeconds(lap.metadata.lapTime) : null;
+        const metaLine = [driverLabel, lapTimeLabel].filter(Boolean).join(' • ');
+        entry.innerHTML = `
+          <span class="lap-color" style="background:${color}"></span>
+          <span class="lap-text">
+            <span class="lap-name">${lap.metadata.track}</span>
+            <span class="lap-meta-line">${metaLine || lap.metadata.car || ''}</span>
+          </span>
+          <label class="lap-visibility">
+            <input type="checkbox" ${state.lapVisibility.has(lap.id) ? 'checked' : ''} data-visibility-id="${lap.id}" />
+            <span>Visible</span>
+          </label>
+        `;
+        li.appendChild(entry);
+        lapList.appendChild(li);
+      });
+    }
+
+    function clearLaps() {
+>>>>>>> theirs
+      state.laps = [];
+      state.activeLapId = null;
+      state.viewWindow = null;
+      state.cursorDistance = null;
+      state.lapColors.clear();
+<<<<<<< ours
+
+      let loadedCount = 0;
+      let failedCount = 0;
+=======
+      state.lapVisibility.clear();
+      state.trackProjectionLapId = null;
+      state.trackProjectionPoints = [];
+      updateMetadata(null);
+      updateLaneData();
+      renderTrackMap(null);
+      updateProgressWindow(null);
+      renderSectorButtons(null);
+      renderLapList();
+      setStatus('Cleared all laps.');
+    }
+
+    async function handleFiles(files) {
+      if (!files.length) return;
+      setStatus('Loading...');
+
+      let loadedCount = 0;
+      let failedCount = 0;
+      let lastLoadedId = null;
+>>>>>>> theirs
+
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const lap = parseLapFile(text, file.name);
+          state.laps.push(lap);
+<<<<<<< ours
+          getLapColor(lap.id);
+          state.activeLapId = lap.id;
+=======
+          state.lapVisibility.add(lap.id);
+          lastLoadedId = lap.id;
+          getLapColor(lap.id);
+>>>>>>> theirs
+          loadedCount++;
+        } catch (err) {
+          console.error(err);
+          failedCount++;
+        }
+      }
+
+<<<<<<< ours
+      const activeLap = getActiveLap();
+      if (activeLap) {
+        setViewWindow(activeLap);
+        updateMetadata(activeLap);
+        updateLaneData(activeLap);
+      } else {
+        updateMetadata(null);
+        updateLaneData(null);
+        renderTrackMap(null);
+        updateProgressWindow(null);
+      }
+
+=======
+      if (lastLoadedId) {
+        activateLap(lastLoadedId);
+      } else if (!state.laps.length) {
+        clearLaps();
+      }
+
+      renderLapList();
+
+>>>>>>> theirs
+      const messages = [];
+      if (loadedCount) messages.push(`Loaded ${loadedCount} lap${loadedCount === 1 ? '' : 's'}.`);
+      if (failedCount) messages.push(`Failed ${failedCount}. Check console for details.`);
+      if (!messages.length) messages.push('No laps loaded.');
+      setStatus(messages.join(' '));
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropzone.classList.remove('dragover');
+      const files = Array.from(event.dataTransfer.files);
+      if (!files.length) return;
+      handleFiles(files);
+    });
+    fileInput.addEventListener('change', (event) => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) return;
+      handleFiles(files);
+      fileInput.value = '';
+    });
+
+<<<<<<< ours
+=======
+    lapList.addEventListener('click', (event) => {
+      const toggle = event.target.closest('input[data-visibility-id]');
+      if (toggle) {
+        const lapId = toggle.dataset.visibilityId;
+        if (!lapId) return;
+        if (toggle.checked) {
+          state.lapVisibility.add(lapId);
+        } else {
+          state.lapVisibility.delete(lapId);
+        }
+        if (!state.lapVisibility.size && state.activeLapId) {
+          state.lapVisibility.add(state.activeLapId);
+          renderLapList();
+        }
+        updateLaneData();
+        renderTrackMap(getActiveLap());
+        return;
+      }
+
+      const button = event.target.closest('.lap-entry');
+      if (!button) return;
+      const lapId = button.dataset.lapId;
+      if (lapId) {
+        activateLap(lapId);
+        renderLapList();
+      }
+    });
+
+    clearLapsBtn.addEventListener('click', () => {
+      clearLaps();
+    });
+
+    sectorButtons.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-start]');
+      if (!button) return;
+      const lap = getActiveLap();
+      if (!lap) return;
+      const start = Number(button.dataset.start);
+      const end = Number(button.dataset.end);
+      setViewWindow(lap, start, end);
+    });
+
+>>>>>>> theirs
+    function handleTrackHover(event) {
+      const lap = getActiveLap();
+      if (!lap || state.trackProjectionLapId !== lap.id || !state.trackProjectionPoints.length) return;
+      const rect = trackCanvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      let nearest = null;
+      let best = Infinity;
+      for (const point of state.trackProjectionPoints) {
+        const dx = point.x - x;
+        const dy = point.y - y;
+        const dist = dx * dx + dy * dy;
+        if (dist < best) {
+          best = dist;
+          nearest = point;
+          if (dist < 25) break;
+        }
+      }
+      if (nearest) {
+        setCursorDistance(nearest.distance);
+      } else {
+        setCursorDistance(null);
+      }
+    }
+
+    trackCanvas.addEventListener('mousemove', handleTrackHover);
+    trackCanvas.addEventListener('mouseleave', () => setCursorDistance(null));
+
+<<<<<<< ours
+    sectorFullBtn.addEventListener('click', () => {
+      sectorFullBtn.classList.add('active');
+      const lap = getActiveLap();
+      setViewWindow(lap);
+    });
+
+=======
+>>>>>>> theirs
+    // --- Progress track drag-to-zoom ----------------------------------------
+
+    const dragState = {
+      active: false,
+      startRatio: 0,
+      endRatio: 1
+    };
+
+    function getProgressRatio(event) {
+      const rect = progressTrack.getBoundingClientRect();
+      const raw = (event.clientX - rect.left) / rect.width;
+      return Math.max(0, Math.min(1, raw));
+    }
+
+    function applyDragSelection() {
+      const lap = getActiveLap();
+      if (!lap) return;
+      const total = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+      const minDistance = lap.samples[0].distance;
+      const span = total - minDistance;
+      let startRatio = Math.min(dragState.startRatio, dragState.endRatio);
+      let endRatio = Math.max(dragState.startRatio, dragState.endRatio);
+
+      if (endRatio - startRatio < 0.005) {
+        const center = (startRatio + endRatio) / 2;
+        startRatio = Math.max(0, center - 0.0025);
+        endRatio = Math.min(1, center + 0.0025);
+      }
+
+      const start = minDistance + span * startRatio;
+      const end = minDistance + span * endRatio;
+      setViewWindow(lap, start, end);
+      setCursorDistance((start + end) / 2);
+    }
+
+    progressTrack.addEventListener('pointerdown', (event) => {
+      const lap = getActiveLap();
+      if (!lap) return;
+      progressTrack.setPointerCapture(event.pointerId);
+      dragState.active = true;
+      const ratio = getProgressRatio(event);
+      dragState.startRatio = ratio;
+      dragState.endRatio = ratio;
+      applyDragSelection();
+    });
+
+    progressTrack.addEventListener('pointermove', (event) => {
+      if (!dragState.active) return;
+      dragState.endRatio = getProgressRatio(event);
+      applyDragSelection();
+    });
+
+    function endDrag(event) {
+      if (!dragState.active) return;
+      dragState.endRatio = getProgressRatio(event);
+      dragState.active = false;
+      try { progressTrack.releasePointerCapture(event.pointerId); } catch (_) {}
+      applyDragSelection();
+    }
+
+    progressTrack.addEventListener('pointerup', endDrag);
+    progressTrack.addEventListener('pointerleave', (event) => {
+      if (!dragState.active) return;
+      endDrag(event);
+    });
+
+    progressTrack.addEventListener('mousemove', (event) => {
+      if (dragState.active) return;
+      const lap = getActiveLap();
+      if (!lap) return;
+      const ratio = getProgressRatio(event);
+      const minDistance = lap.samples[0].distance;
+      const maxDistance = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+      const distance = minDistance + (maxDistance - minDistance) * ratio;
+      setCursorDistance(distance);
+    });
+
+    progressTrack.addEventListener('mouseleave', () => {
+      if (dragState.active) return;
+      setCursorDistance(null);
+    });
+
+    renderTrackMap(null);
+<<<<<<< ours
+=======
+    renderLapList();
+    renderSectorButtons(null);
+>>>>>>> theirs
+  </script>
+</body>
+</html>
