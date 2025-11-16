@@ -33,6 +33,17 @@ Then browse to http://localhost:8080.
 
 > Any static HTTP server works as long as it serves `index.html` and the CSV stays on the client. Examples: `python -m http.server`, VS Code Live Server, etc.
 
+## Tests
+
+Node's built-in test runner exercises the parser and state helpers. Run:
+
+```
+npm install
+npm test
+```
+
+This executes every file under `tests/` via `node --test`. Extend these specs as you add new parsing rules or state helpers.
+
 ## Notes & next steps
 
 - Only LMU-formatted Telemetry Tool exports are supported right now.

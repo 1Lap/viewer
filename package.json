@@ -1,0 +1,8 @@
+{
+  "name": "telemetry-analysis",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,3 +1,37 @@
+/**
+ * @typedef {Object} LapSample
+ * @property {number} distance
+ * @property {number} time
+ * @property {number|null} throttle
+ * @property {number|null} brake
+ * @property {number|null} speed
+ * @property {number|null} steer
+ * @property {number|null} gear
+ * @property {number|null} rpm
+ * @property {number|null} x
+ * @property {number|null} y
+ * @property {number|null} z
+ * @property {number|null} sector
+ */
+
+/**
+ * @typedef {Object} LapMetadata
+ * @property {string} track
+ * @property {string} car
+ * @property {string} driver
+ * @property {number|null} lapTime
+ * @property {number|null} lapLength
+ */
+
+/**
+ * @typedef {Object} Lap
+ * @property {string} id
+ * @property {string} name
+ * @property {LapMetadata} metadata
+ * @property {Array<LapSample>} samples
+ * @property {Array<Object>} sectors
+ */
+
 function guessDelimiter(text) {
   const comma = (text.match(/,/g) || []).length;
   const semi = (text.match(/;/g) || []).length;
@@ -18,6 +52,12 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+/**
+ * Parse the contents of an LMU telemetry export into Lap objects.
+ * @param {string} text
+ * @param {string} fileName
+ * @returns {Lap}
+ */
 export function parseLapFile(text, fileName) {
   const delimiter = guessDelimiter(text);
   const lines = text.split(/\r?\n/);

@@ -141,7 +141,7 @@ Record answers in this file (or a follow-up) before assigning to developers.
 
 ### 10. Validation & UX polish (0.5 day)
 
-**Status:** ⏳ In progress – still need structured testing across varied lap files, explicit performance profiling with multi-lap loads, and polished UX copy (privacy/instructions).
+**Status:** ⏳ In progress – automated parser/state tests now live under `tests/` (run via `npm test`), but we still need broader manual/perf validation and UX copy polish (privacy messaging, drag/drop instructions).
 
 1. Test with sample lap files of varying delimiters to ensure parsing robustness.
 2. Confirm performance with multiple large files (profiling via browser dev tools).
