@@ -21,6 +21,72 @@
       --lane-brake: #d62728;
     }
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    function deriveSectors(samples, fallbackSectors, lapLength) {
+      const sectors = [];
+      if (!samples.length) return sectors;
+      const normalize = (value) => (Number.isFinite(value) && value > 0 ? value : null);
+      let currentSector = normalize(samples[0].sector);
+      let startDistance = samples[0].distance;
+      for (let i = 1; i < samples.length; i++) {
+        const sectorValue = normalize(samples[i].sector);
+        if (sectorValue == null) continue;
+        if (currentSector == null) {
+          currentSector = sectorValue;
+          startDistance = samples[i - 1].distance;
+        }
+        if (sectorValue !== currentSector) {
+          sectors.push({
+            index: currentSector,
+            label: `S${currentSector}`,
+            start: startDistance,
+            end: samples[i].distance
+          });
+          currentSector = sectorValue;
+          startDistance = samples[i].distance;
+        }
+      }
+      if (currentSector != null) {
+        sectors.push({
+          index: currentSector,
+          label: `S${currentSector}`,
+          start: startDistance,
+          end: samples[samples.length - 1].distance
+        });
+      }
+
+      if (!sectors.length && fallbackSectors.length) {
+        const totalDistance = lapLength ?? samples[samples.length - 1].distance ?? 0;
+        const minDistance = samples[0].distance ?? 0;
+        const distanceSpan = totalDistance - minDistance;
+        const totalTime = fallbackSectors.reduce((sum, sector) => sum + (sector.time || 0), 0);
+        if (distanceSpan > 0 && totalTime > 0) {
+          let cursor = minDistance;
+          fallbackSectors.forEach((sector, idx) => {
+            const ratio = (sector.time || 0) / totalTime;
+            const end = idx === fallbackSectors.length - 1 ? totalDistance : cursor + ratio * distanceSpan;
+            const label = sector.label ? sector.label.replace(/\s*\[.*$/, '') : `S${idx + 1}`;
+            sectors.push({
+              index: idx + 1,
+              label,
+              start: cursor,
+              end
+            });
+            cursor = end;
+          });
+        }
+      }
+      return sectors;
+    }
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     * {
       box-sizing: border-box;
     }
@@ -140,6 +206,108 @@
       gap: 0.75rem;
     }
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    .lap-files {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .lap-files header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+      background: none;
+    }
+
+    .lap-files h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .lap-files button.clear {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .lap-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .lap-entry {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-bg);
+      padding: 0.6rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .lap-entry.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+    }
+
+    .lap-entry .lap-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: none;
+    }
+
+    .lap-entry .lap-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 0.85rem;
+    }
+
+    .lap-entry .lap-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .lap-entry .lap-meta-line {
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .lap-entry .lap-visibility {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .lap-entry .lap-visibility input {
+      accent-color: var(--accent);
+    }
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     #trackCanvas {
       width: 100%;
       height: 360px;
@@ -214,14 +382,44 @@
       gap: 0.75rem;
       align-items: center;
       flex-wrap: wrap;
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+      flex-direction: column;
+    }
+
+    .sector-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      width: 100%;
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     }
 
     .sector-button {
       border: 1px solid var(--border);
       background: #fff;
+<<<<<<< ours
+<<<<<<< ours
       padding: 0.4rem 0.9rem;
       border-radius: 999px;
       cursor: pointer;
+=======
+=======
+>>>>>>> theirs
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.8rem;
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       transition: background 0.2s ease, border-color 0.2s ease;
     }
 
@@ -260,6 +458,20 @@
       transition: opacity 0.1s ease;
     }
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    .sector-placeholder {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     footer {
       text-align: center;
       padding: 1rem;
@@ -293,6 +505,19 @@
           <span id="metaCar">—</span>
         </div>
         <div>
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+          <span class="label">Driver</span>
+          <span id="metaDriver">—</span>
+        </div>
+        <div>
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
           <span class="label">Lap time</span>
           <span id="metaLapTime">—</span>
         </div>
@@ -303,6 +528,25 @@
       </div>
     </section>
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    <section class="panel lap-files">
+      <header>
+        <h3>Loaded laps</h3>
+        <button type="button" class="clear" id="clearLaps">Clear all</button>
+      </header>
+      <ul class="lap-list" id="lapList">
+        <li class="status">No laps loaded yet.</li>
+      </ul>
+    </section>
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     <section class="layout">
       <div class="track-panel">
         <div>
@@ -334,7 +578,15 @@
     </section>
 
     <section class="panel sector-bar">
+<<<<<<< ours
+<<<<<<< ours
       <button class="sector-button active" id="sectorFull" type="button">Sector 1 (whole lap)</button>
+=======
+      <div class="sector-buttons" id="sectorButtons"></div>
+>>>>>>> theirs
+=======
+      <div class="sector-buttons" id="sectorButtons"></div>
+>>>>>>> theirs
       <div class="progress-track">
         <div class="progress-window" id="progressWindow" style="left:0%; width:100%"></div>
       </div>
@@ -348,10 +600,23 @@
   <script>
     const state = {
       laps: [],
+<<<<<<< ours
+<<<<<<< ours
       activeLapId: null,
       viewWindow: null,
       cursorDistance: null,
       sectorCursorDistance: null,
+=======
+=======
+>>>>>>> theirs
+      lapVisibility: new Set(),
+      activeLapId: null,
+      viewWindow: null,
+      cursorDistance: null,
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       lapColors: new Map(),
       trackProjectionLapId: null,
       trackProjectionPoints: [],
@@ -368,12 +633,30 @@
     const statusEl = document.getElementById('status');
     const metaTrack = document.getElementById('metaTrack');
     const metaCar = document.getElementById('metaCar');
+<<<<<<< ours
+<<<<<<< ours
     const metaLapTime = document.getElementById('metaLapTime');
     const metaSamples = document.getElementById('metaSamples');
     const trackCanvas = document.getElementById('trackCanvas');
     const sectorFullBtn = document.getElementById('sectorFull');
     const progressWindow = document.getElementById('progressWindow');
     const progressTrack = document.querySelector('.progress-track');
+=======
+=======
+>>>>>>> theirs
+    const metaDriver = document.getElementById('metaDriver');
+    const metaLapTime = document.getElementById('metaLapTime');
+    const metaSamples = document.getElementById('metaSamples');
+    const lapList = document.getElementById('lapList');
+    const clearLapsBtn = document.getElementById('clearLaps');
+    const trackCanvas = document.getElementById('trackCanvas');
+    const progressWindow = document.getElementById('progressWindow');
+    const progressTrack = document.querySelector('.progress-track');
+    const sectorButtons = document.getElementById('sectorButtons');
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     const sectorCursor = document.createElement('div');
     sectorCursor.className = 'progress-cursor';
     progressTrack.appendChild(sectorCursor);
@@ -440,6 +723,16 @@
       let carName = null;
       let lapTimeSeconds = null;
       let trackLength = null;
+<<<<<<< ours
+<<<<<<< ours
+=======
+      let driverName = null;
+      let fallbackSectors = [];
+>>>>>>> theirs
+=======
+      let driverName = null;
+      let fallbackSectors = [];
+>>>>>>> theirs
 
       for (let i = 0; i < lines.length; i++) {
         const raw = lines[i];
@@ -448,6 +741,21 @@
         if (!line) continue;
         const lower = line.toLowerCase();
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+        if (lower.startsWith('player')) {
+          const parts = splitLine(line, delimiter);
+          driverName = parts[2] || parts[1] || driverName;
+          continue;
+        }
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         if (lower.startsWith('game,')) {
           const headers = splitLine(line, delimiter);
           const values = splitLine(lines[i + 1] || '', delimiter);
@@ -457,6 +765,23 @@
           trackName = idxTrack >= 0 ? values[idxTrack] : trackName;
           carName = idxCar >= 0 ? values[idxCar] : carName;
           lapTimeSeconds = idxLapTime >= 0 ? toNumber(values[idxLapTime]) : lapTimeSeconds;
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+          fallbackSectors = headers
+            .map((header, idx) => ({ header, idx }))
+            .filter(({ header }) => /^s\d+/i.test(header.trim()))
+            .map(({ header, idx }) => ({
+              label: header.split(' ')[0],
+              time: toNumber(values[idx])
+            }))
+            .filter((entry) => Number.isFinite(entry.time) && entry.time > 0);
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
           i++;
           continue;
         }
@@ -496,6 +821,14 @@
         x: ['xm', 'x'],
         y: ['ym', 'y'],
         z: ['zm', 'z'],
+<<<<<<< ours
+<<<<<<< ours
+=======
+        sector: ['sectorint', 'sector'],
+>>>>>>> theirs
+=======
+        sector: ['sectorint', 'sector'],
+>>>>>>> theirs
         gear: ['gearint', 'gear'],
         rpm: ['enginerevsrpm', 'enginerevs', 'rpm']
       };
@@ -529,6 +862,14 @@
         const x = toNumber(getValue(values, aliases.x));
         const y = toNumber(getValue(values, aliases.y));
         const z = toNumber(getValue(values, aliases.z));
+<<<<<<< ours
+<<<<<<< ours
+=======
+        const sector = toNumber(getValue(values, aliases.sector));
+>>>>>>> theirs
+=======
+        const sector = toNumber(getValue(values, aliases.sector));
+>>>>>>> theirs
 
         const lapIndex = samples.length;
 
@@ -544,6 +885,14 @@
           x,
           y,
           z,
+<<<<<<< ours
+<<<<<<< ours
+=======
+          sector,
+>>>>>>> theirs
+=======
+          sector,
+>>>>>>> theirs
           lapIndex,
         });
       }
@@ -557,6 +906,14 @@
         sample.lapIndex = index;
       });
       const lapLength = trackLength ?? samples[samples.length - 1].distance ?? null;
+<<<<<<< ours
+<<<<<<< ours
+=======
+      const sectors = deriveSectors(samples, fallbackSectors, lapLength);
+>>>>>>> theirs
+=======
+      const sectors = deriveSectors(samples, fallbackSectors, lapLength);
+>>>>>>> theirs
 
       return {
         id: `lap-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -564,9 +921,23 @@
         metadata: {
           track: trackName || 'Unknown track',
           car: carName || 'Unknown car',
+<<<<<<< ours
+<<<<<<< ours
           lapTime: lapTimeSeconds || null,
           lapLength,
         },
+=======
+=======
+>>>>>>> theirs
+          driver: driverName || '—',
+          lapTime: lapTimeSeconds || null,
+          lapLength,
+        },
+        sectors,
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         samples,
       };
     }
@@ -582,12 +953,28 @@
       if (!lap) {
         metaTrack.textContent = '—';
         metaCar.textContent = '—';
+<<<<<<< ours
+<<<<<<< ours
+=======
+        metaDriver.textContent = '—';
+>>>>>>> theirs
+=======
+        metaDriver.textContent = '—';
+>>>>>>> theirs
         metaLapTime.textContent = '—';
         metaSamples.textContent = '—';
         return;
       }
       metaTrack.textContent = lap.metadata.track;
       metaCar.textContent = lap.metadata.car;
+<<<<<<< ours
+<<<<<<< ours
+=======
+      metaDriver.textContent = lap.metadata.driver || '—';
+>>>>>>> theirs
+=======
+      metaDriver.textContent = lap.metadata.driver || '—';
+>>>>>>> theirs
       metaLapTime.textContent = formatSeconds(lap.metadata.lapTime);
       metaSamples.textContent = lap.samples.length.toLocaleString();
     }
@@ -733,6 +1120,8 @@
       overlay.style.width = `${Math.max(2, Math.abs(right - left))}px`;
     }
 
+<<<<<<< ours
+<<<<<<< ours
     function updateLaneData(lap) {
       if (!lap) {
         Object.values(state.charts).forEach((chart) => {
@@ -769,6 +1158,50 @@
 
     function applyWindowToChart(chart, lap) {
       if (!chart || !lap) return;
+=======
+=======
+>>>>>>> theirs
+    function updateLaneData() {
+      const visibleLaps = state.laps.filter((lap) => state.lapVisibility.has(lap.id));
+
+      const throttleChart = ensureChart('throttle', 'throttleLane');
+      throttleChart.data.datasets = visibleLaps.map((lap) => ({
+        label: lap.name,
+        borderColor: getLapColor(lap.id),
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples
+          .filter((s) => s.throttle != null)
+          .map((s) => ({ x: s.distance, y: s.throttle }))
+      }));
+      applyWindowToChart(throttleChart);
+
+      const brakeChart = ensureChart('brake', 'brakeLane');
+      brakeChart.data.datasets = visibleLaps.map((lap) => ({
+        label: lap.name,
+        borderColor: getLapColor(lap.id),
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        data: lap.samples
+          .filter((s) => s.brake != null)
+          .map((s) => ({ x: s.distance, y: s.brake }))
+      }));
+      applyWindowToChart(brakeChart);
+    }
+
+    function applyWindowToChart(chart) {
+      if (!chart) return;
+      const lap = getActiveLap();
+      if (!lap) {
+        chart.update('none');
+        return;
+      }
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       const start = state.viewWindow?.start ?? lap.samples[0].distance;
       const end = state.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
       chart.options.scales.x.min = start;
@@ -793,7 +1226,15 @@
     function renderTrackMap(lap) {
       const ctx = trackCanvas.getContext('2d');
       ctx.clearRect(0, 0, trackCanvas.width, trackCanvas.height);
+<<<<<<< ours
+<<<<<<< ours
       if (!lap) {
+=======
+      if (!lap || !state.lapVisibility.size) {
+>>>>>>> theirs
+=======
+      if (!lap || !state.lapVisibility.size) {
+>>>>>>> theirs
         ctx.fillStyle = '#adb3c2';
         ctx.font = '14px Inter, sans-serif';
         ctx.textAlign = 'center';
@@ -804,8 +1245,20 @@
       }
 
       const getPlanarY = (sample) => (sample.z != null ? sample.z : sample.y);
+<<<<<<< ours
+<<<<<<< ours
       const points = lap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
       if (!points.length) {
+=======
+      const activeLap = lap;
+      const activePoints = activeLap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+      if (!activePoints.length) {
+>>>>>>> theirs
+=======
+      const activeLap = lap;
+      const activePoints = activeLap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+      if (!activePoints.length) {
+>>>>>>> theirs
         ctx.fillStyle = '#adb3c2';
         ctx.font = '14px Inter, sans-serif';
         ctx.textAlign = 'center';
@@ -820,8 +1273,18 @@
       const totalSpan = lap.samples[lap.samples.length - 1].distance - lap.samples[0].distance || 1;
       const windowSpan = windowEnd - windowStart;
       const shouldZoom = windowSpan < totalSpan * 0.98;
+<<<<<<< ours
+<<<<<<< ours
       const windowPoints = shouldZoom ? points.filter((p) => p.distance >= windowStart && p.distance <= windowEnd) : points;
       const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : points;
+=======
+      const windowPoints = shouldZoom ? activePoints.filter((p) => p.distance >= windowStart && p.distance <= windowEnd) : activePoints;
+      const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : activePoints;
+>>>>>>> theirs
+=======
+      const windowPoints = shouldZoom ? activePoints.filter((p) => p.distance >= windowStart && p.distance <= windowEnd) : activePoints;
+      const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : activePoints;
+>>>>>>> theirs
 
       let minX = Infinity;
       let maxX = -Infinity;
@@ -855,17 +1318,51 @@
         return { x, y };
       }
 
+<<<<<<< ours
+<<<<<<< ours
       const lapColor = getLapColor(lap.id);
       ctx.lineWidth = 2;
       ctx.strokeStyle = lapColor;
       ctx.globalAlpha = 0.4;
       ctx.beginPath();
       points.forEach((sample, idx) => {
+=======
+=======
+>>>>>>> theirs
+      state.laps.forEach((lapItem) => {
+        if (!state.lapVisibility.has(lapItem.id)) return;
+        const lapPoints = lapItem.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+        if (!lapPoints.length) return;
+        const lapColor = getLapColor(lapItem.id);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = lapColor;
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        lapPoints.forEach((sample, idx) => {
+          const { x, y } = toCanvasCoords(sample);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      ctx.globalAlpha = 1;
+      const activeColor = getLapColor(activeLap.id);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = activeColor;
+      ctx.beginPath();
+      activePoints.forEach((sample, idx) => {
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
         const { x, y } = toCanvasCoords(sample);
         if (idx === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
+<<<<<<< ours
+<<<<<<< ours
       ctx.globalAlpha = 1;
 
       if (windowEnd > windowStart) {
@@ -875,6 +1372,21 @@
         ctx.beginPath();
         let drawing = false;
         points.forEach((sample) => {
+=======
+=======
+>>>>>>> theirs
+
+      if (windowEnd > windowStart) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = activeColor;
+        ctx.globalAlpha = 0.95;
+        ctx.beginPath();
+        let drawing = false;
+        activePoints.forEach((sample) => {
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
           if (sample.distance < windowStart || sample.distance > windowEnd) {
             drawing = false;
             return;
@@ -892,7 +1404,15 @@
       }
 
       state.trackProjectionLapId = lap.id;
+<<<<<<< ours
+<<<<<<< ours
       state.trackProjectionPoints = lap.samples.map((sample) => {
+=======
+      state.trackProjectionPoints = activeLap.samples.map((sample) => {
+>>>>>>> theirs
+=======
+      state.trackProjectionPoints = activeLap.samples.map((sample) => {
+>>>>>>> theirs
         const planeY = getPlanarY(sample);
         if (sample.x == null || planeY == null) return null;
         const { x, y } = toCanvasCoords(sample);
@@ -943,6 +1463,66 @@
       sectorCursor.style.left = `${Math.max(0, Math.min(100, ratio * 100))}%`;
     }
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    function renderSectorButtons(lap) {
+      sectorButtons.innerHTML = '';
+      if (!lap) {
+        const span = document.createElement('span');
+        span.className = 'sector-placeholder';
+        span.textContent = 'Load a lap to view sectors.';
+        sectorButtons.appendChild(span);
+        return;
+      }
+      const startDistance = lap.samples[0]?.distance ?? 0;
+      const endDistance = (lap.metadata.lapLength || lap.samples[lap.samples.length - 1]?.distance) ?? startDistance;
+      const viewStart = state.viewWindow?.start ?? startDistance;
+      const viewEnd = state.viewWindow?.end ?? endDistance;
+
+      const buttons = [];
+      const allButton = createSectorButton('All', startDistance, endDistance, isWindowMatch(viewStart, viewEnd, startDistance, endDistance));
+      buttons.push(allButton);
+
+      const sectorEntries = lap.sectors || [];
+      sectorEntries.forEach((sector, idx) => {
+        const label = sector.label || `S${sector.index ?? idx + 1}`;
+        const start = sector.start ?? startDistance;
+        const end = sector.end ?? endDistance;
+        buttons.push(createSectorButton(label, start, end, isWindowMatch(viewStart, viewEnd, start, end)));
+      });
+
+      buttons.forEach((button) => sectorButtons.appendChild(button));
+
+      if (sectorEntries.length === 0) {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'sector-placeholder';
+        placeholder.textContent = 'No sector data available for this lap.';
+        sectorButtons.appendChild(placeholder);
+      }
+    }
+
+    function createSectorButton(label, start, end, isActive) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `sector-button${isActive ? ' active' : ''}`;
+      button.dataset.start = start;
+      button.dataset.end = end;
+      button.textContent = label;
+      return button;
+    }
+
+    function isWindowMatch(viewStart, viewEnd, targetStart, targetEnd) {
+      const tolerance = Math.max(1, (targetEnd - targetStart) * 0.01);
+      return Math.abs(viewStart - targetStart) <= tolerance && Math.abs(viewEnd - targetEnd) <= tolerance;
+    }
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     function setViewWindow(lap, start, end) {
       if (!lap) {
         state.viewWindow = null;
@@ -958,7 +1538,17 @@
       };
       updateProgressWindow(lap);
       renderTrackMap(lap);
+<<<<<<< ours
+<<<<<<< ours
       Object.values(state.charts).forEach((chart) => applyWindowToChart(chart, lap));
+=======
+      renderSectorButtons(lap);
+      Object.values(state.charts).forEach((chart) => applyWindowToChart(chart));
+>>>>>>> theirs
+=======
+      renderSectorButtons(lap);
+      Object.values(state.charts).forEach((chart) => applyWindowToChart(chart));
+>>>>>>> theirs
     }
 
     function setCursorDistance(distance) {
@@ -973,25 +1563,121 @@
       return state.laps.find((lap) => lap.id === state.activeLapId) || null;
     }
 
+<<<<<<< ours
+<<<<<<< ours
     async function handleFiles(files) {
       if (!files.length) return;
       setStatus('Loading...');
+=======
+=======
+>>>>>>> theirs
+    function activateLap(lapId) {
+      const lap = state.laps.find((l) => l.id === lapId);
+      if (!lap) return;
+      state.activeLapId = lapId;
+      state.cursorDistance = null;
+      state.lapVisibility.add(lapId);
+      setViewWindow(lap);
+      updateMetadata(lap);
+      updateLaneData();
+    }
+
+    function renderLapList() {
+      lapList.innerHTML = '';
+      if (!state.laps.length) {
+        const li = document.createElement('li');
+        li.className = 'status';
+        li.textContent = 'No laps loaded yet.';
+        lapList.appendChild(li);
+        return;
+      }
+      state.laps.forEach((lap) => {
+        const li = document.createElement('li');
+        const entry = document.createElement('button');
+        entry.type = 'button';
+        entry.className = `lap-entry${lap.id === state.activeLapId ? ' active' : ''}`;
+        entry.dataset.lapId = lap.id;
+        const color = getLapColor(lap.id);
+        const driverLabel = lap.metadata.driver && lap.metadata.driver !== '—' ? lap.metadata.driver : 'Unknown driver';
+        const lapTimeLabel = lap.metadata.lapTime != null ? formatSeconds(lap.metadata.lapTime) : null;
+        const metaLine = [driverLabel, lapTimeLabel].filter(Boolean).join(' • ');
+        entry.innerHTML = `
+          <span class="lap-color" style="background:${color}"></span>
+          <span class="lap-text">
+            <span class="lap-name">${lap.metadata.track}</span>
+            <span class="lap-meta-line">${metaLine || lap.metadata.car || ''}</span>
+          </span>
+          <label class="lap-visibility">
+            <input type="checkbox" ${state.lapVisibility.has(lap.id) ? 'checked' : ''} data-visibility-id="${lap.id}" />
+            <span>Visible</span>
+          </label>
+        `;
+        li.appendChild(entry);
+        lapList.appendChild(li);
+      });
+    }
+
+    function clearLaps() {
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       state.laps = [];
       state.activeLapId = null;
       state.viewWindow = null;
       state.cursorDistance = null;
       state.lapColors.clear();
+<<<<<<< ours
+<<<<<<< ours
 
       let loadedCount = 0;
       let failedCount = 0;
+=======
+=======
+>>>>>>> theirs
+      state.lapVisibility.clear();
+      state.trackProjectionLapId = null;
+      state.trackProjectionPoints = [];
+      updateMetadata(null);
+      updateLaneData();
+      renderTrackMap(null);
+      updateProgressWindow(null);
+      renderSectorButtons(null);
+      renderLapList();
+      setStatus('Cleared all laps.');
+    }
+
+    async function handleFiles(files) {
+      if (!files.length) return;
+      setStatus('Loading...');
+
+      let loadedCount = 0;
+      let failedCount = 0;
+      let lastLoadedId = null;
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 
       for (const file of files) {
         try {
           const text = await file.text();
           const lap = parseLapFile(text, file.name);
           state.laps.push(lap);
+<<<<<<< ours
+<<<<<<< ours
           getLapColor(lap.id);
           state.activeLapId = lap.id;
+=======
+          state.lapVisibility.add(lap.id);
+          lastLoadedId = lap.id;
+          getLapColor(lap.id);
+>>>>>>> theirs
+=======
+          state.lapVisibility.add(lap.id);
+          lastLoadedId = lap.id;
+          getLapColor(lap.id);
+>>>>>>> theirs
           loadedCount++;
         } catch (err) {
           console.error(err);
@@ -999,6 +1685,8 @@
         }
       }
 
+<<<<<<< ours
+<<<<<<< ours
       const activeLap = getActiveLap();
       if (activeLap) {
         setViewWindow(activeLap);
@@ -1011,6 +1699,21 @@
         updateProgressWindow(null);
       }
 
+=======
+=======
+>>>>>>> theirs
+      if (lastLoadedId) {
+        activateLap(lastLoadedId);
+      } else if (!state.laps.length) {
+        clearLaps();
+      }
+
+      renderLapList();
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
       const messages = [];
       if (loadedCount) messages.push(`Loaded ${loadedCount} lap${loadedCount === 1 ? '' : 's'}.`);
       if (failedCount) messages.push(`Failed ${failedCount}. Check console for details.`);
@@ -1038,6 +1741,57 @@
       fileInput.value = '';
     });
 
+<<<<<<< ours
+<<<<<<< ours
+=======
+=======
+>>>>>>> theirs
+    lapList.addEventListener('click', (event) => {
+      const toggle = event.target.closest('input[data-visibility-id]');
+      if (toggle) {
+        const lapId = toggle.dataset.visibilityId;
+        if (!lapId) return;
+        if (toggle.checked) {
+          state.lapVisibility.add(lapId);
+        } else {
+          state.lapVisibility.delete(lapId);
+        }
+        if (!state.lapVisibility.size && state.activeLapId) {
+          state.lapVisibility.add(state.activeLapId);
+          renderLapList();
+        }
+        updateLaneData();
+        renderTrackMap(getActiveLap());
+        return;
+      }
+
+      const button = event.target.closest('.lap-entry');
+      if (!button) return;
+      const lapId = button.dataset.lapId;
+      if (lapId) {
+        activateLap(lapId);
+        renderLapList();
+      }
+    });
+
+    clearLapsBtn.addEventListener('click', () => {
+      clearLaps();
+    });
+
+    sectorButtons.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-start]');
+      if (!button) return;
+      const lap = getActiveLap();
+      if (!lap) return;
+      const start = Number(button.dataset.start);
+      const end = Number(button.dataset.end);
+      setViewWindow(lap, start, end);
+    });
+
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     function handleTrackHover(event) {
       const lap = getActiveLap();
       if (!lap || state.trackProjectionLapId !== lap.id || !state.trackProjectionPoints.length) return;
@@ -1066,12 +1820,18 @@
     trackCanvas.addEventListener('mousemove', handleTrackHover);
     trackCanvas.addEventListener('mouseleave', () => setCursorDistance(null));
 
+<<<<<<< ours
+<<<<<<< ours
     sectorFullBtn.addEventListener('click', () => {
       sectorFullBtn.classList.add('active');
       const lap = getActiveLap();
       setViewWindow(lap);
     });
 
+=======
+>>>>>>> theirs
+=======
+>>>>>>> theirs
     // --- Progress track drag-to-zoom ----------------------------------------
 
     const dragState = {
@@ -1155,6 +1915,16 @@
     });
 
     renderTrackMap(null);
+<<<<<<< ours
+<<<<<<< ours
+=======
+    renderLapList();
+    renderSectorButtons(null);
+>>>>>>> theirs
+=======
+    renderLapList();
+    renderSectorButtons(null);
+>>>>>>> theirs
   </script>
 </body>
 </html>
