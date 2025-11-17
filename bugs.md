@@ -26,6 +26,6 @@ Below are the current issues, ordered by suggested fix priority, along with reme
    _Issue_: Users cannot zoom with the mouse wheel or pan the map view.  
    _Fix strategy_: Add wheel event handlers to adjust zoom level (with limits) and mouse-drag handlers to offset the drawing bounds. Preserve view window coherence by syncing zoom to the current distance range.
 
-7. **Screen real estate optimisation**  
+7. ✅ **Screen real estate optimisation**  
    _Issue_: Overall UI does not fill widescreen displays.  
    _Fix strategy_: Increase the max-width of `<main>`, allow lanes to wrap into two columns on large breakpoints, and let the map/lane panels stretch to 100% width when space allows.

@@ -6,23 +6,27 @@ export function renderTrackMap(lap) {
   if (!elements?.trackCanvas) return;
   const canvas = elements.trackCanvas;
   const ctx = canvas.getContext('2d');
-  const { clientWidth, clientHeight } = canvas;
-  if (!clientWidth || !clientHeight) return;
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = rect.width || canvas.clientWidth;
+  const cssHeight = rect.height || canvas.clientHeight;
+  if (!cssWidth || !cssHeight) return;
   const dpr = window.devicePixelRatio || 1;
-  const displayWidth = Math.floor(clientWidth * dpr);
-  const displayHeight = Math.floor(clientHeight * dpr);
+  const displayWidth = Math.floor(cssWidth * dpr);
+  const displayHeight = Math.floor(cssHeight * dpr);
   if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
     canvas.width = displayWidth;
     canvas.height = displayHeight;
   }
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, clientWidth, clientHeight);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
   if (!lap || !telemetryState.lapVisibility.size) {
     ctx.fillStyle = '#adb3c2';
     ctx.font = '14px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Load a lap to view the track map', clientWidth / 2, clientHeight / 2);
+    ctx.fillText('Load a lap to view the track map', cssWidth / 2, cssHeight / 2);
     projectionState.sourceLapId = null;
     projectionState.points = [];
     return;
@@ -78,15 +82,15 @@ export function renderTrackMap(lap) {
   const paddingY = 30;
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
-  const width = clientWidth - paddingX * 2;
-  const height = clientHeight - paddingY * 2;
+  const width = cssWidth - paddingX * 2;
+  const height = cssHeight - paddingY * 2;
 
   function toCanvasCoords(sample) {
     const planeY = getPlanarY(sample);
     const normX = (sample.x - minX) / rangeX;
     const normY = (planeY - minY) / rangeY;
     const x = paddingX + (1 - normX) * width;
-    const y = clientHeight - paddingY - normY * height;
+    const y = cssHeight - paddingY - normY * height;
     return { x, y };
   }
 
