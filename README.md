@@ -10,6 +10,7 @@ Lightweight static prototype for inspecting LMU Telemetry Tool exports entirely 
 - Renders throttle, brake, speed, gear/RPM, steering, and delta lanes vs lap distance with shared cursor highlighting.
 - Shows a basic track map derived from X/Y telemetry data with cursor indicator.
 - Light/dark Garage-61-inspired layout with a toggle; remembers your preferred theme, active lap, and zoom window via localStorage between sessions.
+- One-click “Share active lap” button compresses the active lap into the URL so teammates can load it without passing files around.
 
 ## Architecture overview
 

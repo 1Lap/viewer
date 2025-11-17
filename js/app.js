@@ -6,7 +6,8 @@ import {
   getActiveLap,
   setActiveLapId,
   resetState,
-  syncLapColorsToOrder
+  syncLapColorsToOrder,
+  getLapColor
 } from './state.js';
 import { updateMetadata } from './metadata.js';
 import { initCharts, updateLaneData, applyWindowToCharts, refreshCharts } from './charts.js';
@@ -20,6 +21,7 @@ import {
 import { initLapListInteractions, renderLapList } from './lapList.js';
 import { showMessage, showError } from './notifications.js';
 import { ensureLapSignature } from './signature.js';
+import { buildShareLink, importSharedLap } from './share.js';
 
 const PREFS_KEY = 'lmuLapViewerPrefs';
 const SESSION_KEY = 'lmuLapViewerSession';
@@ -48,6 +50,8 @@ function bootstrap() {
     });
     updateThemeToggle(document.documentElement.dataset.theme || DEFAULT_THEME);
   }
+
+  elements.shareLapBtn?.addEventListener('click', () => shareActiveLap());
 
   if (elements.dropzone) {
     elements.dropzone.addEventListener('click', () => elements.fileInput?.click());
@@ -94,6 +98,8 @@ function bootstrap() {
     renderLapList();
     renderSectorButtons(null);
   }
+
+  handleSharedLapParam();
 }
 
 if (document.readyState === 'loading') {
@@ -429,4 +435,51 @@ function deserializeLap(raw) {
   };
   ensureLapSignature(lap);
   return lap;
+}
+
+async function shareActiveLap() {
+  const lap = getActiveLap();
+  if (!lap) {
+    showMessage('Load a lap before sharing.', 'warning');
+    return;
+  }
+  try {
+    const windowRange = uiState.savedWindows.get(lap.id) ?? uiState.viewWindow ?? null;
+    const link = await buildShareLink(lap, windowRange);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(link);
+      showMessage('Share link copied to clipboard.', 'success');
+    } else {
+      prompt('Copy this share link', link);
+    }
+  } catch (error) {
+    console.error(error);
+    showError('Failed to build share link.', error);
+  }
+}
+
+async function handleSharedLapParam() {
+  const params = new URLSearchParams(window.location.search);
+  const payload = params.get('share');
+  if (!payload) return;
+  try {
+    const { lap, window } = await importSharedLap(payload);
+    telemetryState.laps.push(lap);
+    telemetryState.lapOrder.push(lap.id);
+    telemetryState.lapVisibility.add(lap.id);
+    getLapColor(lap.id);
+    if (window?.start != null && window?.end != null) {
+      uiState.savedWindows.set(lap.id, window);
+    }
+    activateLap(lap.id);
+    showMessage('Loaded shared lap.', 'success');
+  } catch (error) {
+    console.error(error);
+    showError('Failed to import shared lap.', error);
+  } finally {
+    params.delete('share');
+    const newQuery = params.toString();
+    const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }
 }

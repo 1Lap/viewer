@@ -163,6 +163,32 @@
         font-size: 1rem;
       }
 
+      .lap-info header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+      }
+
+      .share-btn {
+        border: 1px solid var(--border);
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 0.25rem 0.9rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          border-color 0.2s ease;
+      }
+
+      .share-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
       .lap-meta {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -540,7 +566,10 @@
       </section>
 
       <section class="panel lap-info">
-        <h2>Lap overview</h2>
+        <header>
+          <h2>Lap overview</h2>
+          <button id="shareLap" class="share-btn" type="button">Share active lap</button>
+        </header>
         <div class="lap-meta">
           <div>
             <span class="label">Track</span>
