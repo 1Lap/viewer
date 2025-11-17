@@ -2,6 +2,21 @@ import { elements } from './elements.js';
 import { telemetryState, uiState, projectionState, getLapColor, getActiveLap } from './state.js';
 import { findSampleAtDistance } from './utils.js';
 
+const panState = {
+  active: false,
+  pointerId: null,
+  startX: 0,
+  windowStart: 0,
+  windowEnd: 0,
+  minDistance: 0,
+  maxDistance: 0
+};
+
+const hoverDeps = {
+  setCursorDistance: () => {},
+  setViewWindow: null
+};
+
 export function renderTrackMap(lap) {
   if (!elements?.trackCanvas) return;
   const canvas = elements.trackCanvas;
@@ -164,32 +179,159 @@ export function renderTrackMap(lap) {
   }
 }
 
-export function initTrackHover({ setCursorDistance }) {
+export function initTrackHover({ setCursorDistance, setViewWindow }) {
   if (!elements?.trackCanvas) return;
-  elements.trackCanvas.addEventListener('mousemove', (event) => {
-    const lap = getActiveLap();
-    if (!lap || projectionState.sourceLapId !== lap.id || !projectionState.points.length) return;
-    const rect = elements.trackCanvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    let nearest = null;
-    let best = Infinity;
-    for (const point of projectionState.points) {
-      const dx = point.x - x;
-      const dy = point.y - y;
-      const dist = dx * dx + dy * dy;
-      if (dist < best) {
-        best = dist;
-        nearest = point;
-        if (dist < 25) break;
-      }
-    }
-    if (nearest) {
-      setCursorDistance(nearest.distance);
-    } else {
-      setCursorDistance(null);
-    }
-  });
+  hoverDeps.setCursorDistance = setCursorDistance;
+  hoverDeps.setViewWindow = setViewWindow ?? null;
 
-  elements.trackCanvas.addEventListener('mouseleave', () => setCursorDistance(null));
+  elements.trackCanvas.addEventListener('pointermove', handlePointerMove);
+  elements.trackCanvas.addEventListener('pointerdown', handlePointerDown);
+  elements.trackCanvas.addEventListener('pointerup', handlePointerUp);
+  elements.trackCanvas.addEventListener('pointerleave', handlePointerLeave);
+  elements.trackCanvas.addEventListener('pointercancel', handlePointerLeave);
+  elements.trackCanvas.addEventListener('wheel', handleWheelZoom, { passive: false });
+}
+
+function handlePointerMove(event) {
+  if (panState.active && event.pointerId === panState.pointerId) {
+    handlePan(event);
+    return;
+  }
+  updateCursorFromEvent(event);
+}
+
+function handlePointerDown(event) {
+  if (event.button !== 0) return;
+  const lap = getActiveLap();
+  if (!lap) return;
+  const bounds = getDistanceBounds(lap);
+  panState.active = true;
+  panState.pointerId = event.pointerId;
+  panState.startX = event.clientX;
+  panState.windowStart = bounds.start;
+  panState.windowEnd = bounds.end;
+  panState.minDistance = bounds.minDistance;
+  panState.maxDistance = bounds.maxDistance;
+  hoverDeps.setCursorDistance(null);
+  try {
+    event.target.setPointerCapture(event.pointerId);
+  } catch {
+    // Ignore capture failures.
+  }
+  event.target.style.cursor = 'grabbing';
+}
+
+function handlePointerUp(event) {
+  if (panState.active && event.pointerId === panState.pointerId) {
+    endPan(event);
+  }
+}
+
+function handlePointerLeave(event) {
+  if (panState.active && event.pointerId === panState.pointerId) {
+    endPan(event);
+  }
+  hoverDeps.setCursorDistance(null);
+}
+
+function handleWheelZoom(event) {
+  if (!hoverDeps.setViewWindow) return;
+  const lap = getActiveLap();
+  if (!lap) return;
+  const bounds = getDistanceBounds(lap);
+  const span = bounds.end - bounds.start || bounds.maxDistance - bounds.minDistance || 1;
+  if (!Number.isFinite(span)) return;
+  const zoomFactor = event.deltaY < 0 ? 0.85 : 1.15;
+  let newSpan = span * zoomFactor;
+  const totalSpan = bounds.maxDistance - bounds.minDistance || 1;
+  const minSpan = Math.max(totalSpan * 0.02, 5);
+  newSpan = Math.min(Math.max(newSpan, minSpan), totalSpan);
+  const targetDistance = getPointerDistance(event) ?? bounds.start + span / 2;
+  const ratio = newSpan / span;
+  let newStart = targetDistance - (targetDistance - bounds.start) * ratio;
+  let newEnd = newStart + newSpan;
+  if (newStart < bounds.minDistance) {
+    newStart = bounds.minDistance;
+    newEnd = newStart + newSpan;
+  }
+  if (newEnd > bounds.maxDistance) {
+    newEnd = bounds.maxDistance;
+    newStart = newEnd - newSpan;
+  }
+  event.preventDefault();
+  hoverDeps.setViewWindow(lap, newStart, newEnd);
+}
+
+function handlePan(event) {
+  if (!hoverDeps.setViewWindow) return;
+  const span = panState.windowEnd - panState.windowStart;
+  if (!span) return;
+  const rect = elements.trackCanvas.getBoundingClientRect();
+  const dxRatio = rect.width ? (event.clientX - panState.startX) / rect.width : 0;
+  const shift = -dxRatio * span;
+  let newStart = panState.windowStart + shift;
+  let newEnd = panState.windowEnd + shift;
+  if (newStart < panState.minDistance) {
+    newStart = panState.minDistance;
+    newEnd = newStart + span;
+  }
+  if (newEnd > panState.maxDistance) {
+    newEnd = panState.maxDistance;
+    newStart = newEnd - span;
+  }
+  const lap = getActiveLap();
+  if (!lap) return;
+  hoverDeps.setViewWindow(lap, newStart, newEnd);
+  event.preventDefault();
+}
+
+function endPan(event) {
+  panState.active = false;
+  if (panState.pointerId != null) {
+    try {
+      event.target.releasePointerCapture(panState.pointerId);
+    } catch {
+      // Ignore failures.
+    }
+  }
+  panState.pointerId = null;
+  event.target.style.cursor = '';
+}
+
+function updateCursorFromEvent(event) {
+  const nearestDistance = getPointerDistance(event);
+  if (nearestDistance != null) {
+    hoverDeps.setCursorDistance(nearestDistance);
+  } else {
+    hoverDeps.setCursorDistance(null);
+  }
+}
+
+function getPointerDistance(event) {
+  const lap = getActiveLap();
+  if (!lap || projectionState.sourceLapId !== lap.id || !projectionState.points.length) return null;
+  const rect = elements.trackCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  let nearest = null;
+  let best = Infinity;
+  for (const point of projectionState.points) {
+    const dx = point.x - x;
+    const dy = point.y - y;
+    const dist = dx * dx + dy * dy;
+    if (dist < best) {
+      best = dist;
+      nearest = point;
+      if (dist < 25) break;
+    }
+  }
+  return nearest ? nearest.distance : null;
+}
+
+function getDistanceBounds(lap) {
+  const minDistance = lap.samples[0].distance;
+  const maxDistance = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+  const start = uiState.viewWindow?.start ?? minDistance;
+  const end = uiState.viewWindow?.end ?? maxDistance;
+  return { minDistance, maxDistance, start, end };
 }

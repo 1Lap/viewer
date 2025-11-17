@@ -30,7 +30,7 @@ function bootstrap() {
   initDomElements();
 
   initCharts({ setCursorDistance, setViewWindow });
-  initTrackHover({ getActiveLap, setCursorDistance });
+  initTrackHover({ setCursorDistance, setViewWindow });
   initProgressControls({ getActiveLap, setViewWindow, setCursorDistance });
   initLapListInteractions({
     activateLap,

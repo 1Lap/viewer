@@ -22,13 +22,15 @@ Below are the current issues, ordered by suggested fix priority, along with reme
    _Fix strategy_: Replace the driver field with “Active driver” (only for selected lap) or remove it entirely from the overview, keeping driver context on the lap cards.  
    _Status_: Overview now labels the field “Active driver,” so only the selected lap’s driver is shown.
 
-5. **Track map size/layout responsiveness**  
+5. ✅ **Track map size/layout responsiveness**  
    _Issue_: Track map stays small while lanes stack vertically, wasting horizontal space.  
-   _Fix strategy_: Convert `.layout` to a responsive grid where the map stretches to match the combined height of lanes (e.g., using CSS grid row-span) and allow full-width expansion on large screens.
+   _Fix strategy_: Convert `.layout` to a responsive grid where the map stretches to match the combined height of lanes (e.g., using CSS grid row-span) and allow full-width expansion on large screens.  
+   _Status_: The telemetry lanes now occupy a responsive CSS grid that lets the track map span all rows, so the canvas grows alongside the combined lane height on any screen.
 
-6. **Track map zoom/pan interactions**  
+6. ✅ **Track map zoom/pan interactions**  
    _Issue_: Users cannot zoom with the mouse wheel or pan the map view.  
-   _Fix strategy_: Add wheel event handlers to adjust zoom level (with limits) and mouse-drag handlers to offset the drawing bounds. Preserve view window coherence by syncing zoom to the current distance range.
+   _Fix strategy_: Add wheel event handlers to adjust zoom level (with limits) and mouse-drag handlers to offset the drawing bounds. Preserve view window coherence by syncing zoom to the current distance range.  
+   _Status_: The track canvas now hooks wheel gestures for zoom and pointer drag for panning, both updating the global distance window so charts stay in sync.
 
 7. ✅ **Screen real estate optimisation**  
    _Issue_: Overall UI does not fill widescreen displays.  
