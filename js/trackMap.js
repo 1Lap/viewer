@@ -6,12 +6,23 @@ export function renderTrackMap(lap) {
   if (!elements?.trackCanvas) return;
   const canvas = elements.trackCanvas;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const { clientWidth, clientHeight } = canvas;
+  if (!clientWidth || !clientHeight) return;
+  const dpr = window.devicePixelRatio || 1;
+  const displayWidth = Math.floor(clientWidth * dpr);
+  const displayHeight = Math.floor(clientHeight * dpr);
+  if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+    canvas.width = displayWidth;
+    canvas.height = displayHeight;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, clientWidth, clientHeight);
   if (!lap || !telemetryState.lapVisibility.size) {
     ctx.fillStyle = '#adb3c2';
     ctx.font = '14px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Load a lap to view the track map', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('Load a lap to view the track map', clientWidth / 2, clientHeight / 2);
     projectionState.sourceLapId = null;
     projectionState.points = [];
     return;
@@ -67,15 +78,15 @@ export function renderTrackMap(lap) {
   const paddingY = 30;
   const rangeX = maxX - minX || 1;
   const rangeY = maxY - minY || 1;
-  const width = canvas.width - paddingX * 2;
-  const height = canvas.height - paddingY * 2;
+  const width = clientWidth - paddingX * 2;
+  const height = clientHeight - paddingY * 2;
 
   function toCanvasCoords(sample) {
     const planeY = getPlanarY(sample);
     const normX = (sample.x - minX) / rangeX;
     const normY = (planeY - minY) / rangeY;
     const x = paddingX + (1 - normX) * width;
-    const y = canvas.height - paddingY - normY * height;
+    const y = clientHeight - paddingY - normY * height;
     return { x, y };
   }
 
