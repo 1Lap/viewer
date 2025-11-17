@@ -10,6 +10,7 @@ Lightweight static prototype for inspecting LMU Telemetry Tool exports entirely 
 - Renders throttle, brake, speed, gear/RPM, steering, and delta lanes vs lap distance with shared cursor highlighting.
 - Shows a basic track map derived from X/Y telemetry data with cursor indicator.
 - Light/dark Garage-61-inspired layout with a toggle; remembers your preferred theme, active lap, and zoom window via localStorage between sessions.
+- One-click “Share active lap” button compresses the active lap into the URL so teammates can load it without passing files around.
 
 ## Architecture overview
 
@@ -28,17 +29,17 @@ The entire codebase sticks to ES modules with no bundler; HTML references each m
 
 ## Contributor guide
 
-1. **Setup**  
+1. **Setup**
    - Install Node 20+ and run `npm install`. No global tooling is required beyond a modern browser.
-2. **Development workflow**  
+2. **Development workflow**
    - Start with `npm test` to ensure the parser/state suites pass.
    - Use `npm run lint` and `npm run format` (or `npm run format:check` in CI) before opening a pull request.
    - Load `index.html` via a static server (or from `file://`) and drop sample LMU exports to validate UI changes.
-3. **Coding standards**  
+3. **Coding standards**
    - Keep new modules under `js/` and export pure helpers when possible.
    - Use the shared palette/config constants from `js/config.js` rather than hard-coding values in feature files.
    - Prefer the provided state helpers over mutating `telemetryState`/`uiState` directly, so tests and future refactors remain predictable.
-4. **Testing additions**  
+4. **Testing additions**
    - Extend `tests/` with new `node:test` specs whenever you touch parsing logic or shared state helpers.
    - For UI features that can’t be unit tested, document manual validation steps in the PR description.
 

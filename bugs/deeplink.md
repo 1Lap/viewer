@@ -20,4 +20,4 @@ generate a "deep link" which will open my telemetry, that I can share with anoth
 
 ## Status
 
-⏳ Pending — next steps are to prototype the client-side compression flow (trim fields, quantize, delta + gzip) and validate resulting URL sizes; if acceptable, implement the share/decode logic around these compact payloads.
+✅ Completed — active lap can now be shared client-side via quantized/delta-compressed telemetry embedded in a `?share=` query param; recipients decode the payload and see the lap instantly without a backend. (Fine-tuning fidelity vs. URL size is ongoing.)

@@ -6,7 +6,8 @@ import {
   getActiveLap,
   setActiveLapId,
   resetState,
-  syncLapColorsToOrder
+  syncLapColorsToOrder,
+  getLapColor
 } from './state.js';
 import { updateMetadata } from './metadata.js';
 import { initCharts, updateLaneData, applyWindowToCharts, refreshCharts } from './charts.js';
@@ -20,6 +21,7 @@ import {
 import { initLapListInteractions, renderLapList } from './lapList.js';
 import { showMessage, showError } from './notifications.js';
 import { ensureLapSignature } from './signature.js';
+import { buildShareLink, importSharedLap } from './share.js';
 
 const PREFS_KEY = 'lmuLapViewerPrefs';
 const SESSION_KEY = 'lmuLapViewerSession';
@@ -48,6 +50,8 @@ function bootstrap() {
     });
     updateThemeToggle(document.documentElement.dataset.theme || DEFAULT_THEME);
   }
+
+  elements.shareLapBtn?.addEventListener('click', () => shareActiveLap());
 
   if (elements.dropzone) {
     elements.dropzone.addEventListener('click', () => elements.fileInput?.click());
@@ -94,6 +98,8 @@ function bootstrap() {
     renderLapList();
     renderSectorButtons(null);
   }
+
+  handleSharedLapParam();
 }
 
 if (document.readyState === 'loading') {
@@ -106,14 +112,8 @@ async function handleFiles(files) {
   if (!files.length) return;
   showMessage('Loading...');
 
-  const {
-    loadedCount,
-    failedCount,
-    duplicateCount,
-    duplicateFiles,
-    lastLoadedId,
-    errors
-  } = await loadLapFiles(files);
+  const { loadedCount, failedCount, duplicateCount, duplicateFiles, lastLoadedId, errors } =
+    await loadLapFiles(files);
   const preferredLapId = findPreferredLapId();
   if (preferredLapId) {
     activateLap(preferredLapId);
@@ -137,7 +137,9 @@ async function handleFiles(files) {
       duplicateFiles && duplicateFiles.length
         ? ` (${duplicateFiles.slice(0, 3).join(', ')}${duplicateFiles.length > 3 ? '…' : ''})`
         : '';
-    messages.push(`Skipped ${duplicateCount} duplicate lap${duplicateCount === 1 ? '' : 's'}${namePreview}.`);
+    messages.push(
+      `Skipped ${duplicateCount} duplicate lap${duplicateCount === 1 ? '' : 's'}${namePreview}.`
+    );
   }
   if (failedCount && !errors.length) {
     messages.push(`Failed ${failedCount}. Check console for details.`);
@@ -338,6 +340,12 @@ function updateThemeToggle(theme) {
   elements.themeToggle.textContent = theme === 'dark' ? 'Dark mode' : 'Light mode';
 }
 
+function isSafariBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua) && !/Edg/.test(ua);
+}
+
 function persistLapSession() {
   if (typeof localStorage === 'undefined') return;
   try {
@@ -361,14 +369,13 @@ function restoreLapSession() {
     const payload = JSON.parse(raw);
     if (!payload?.laps?.length) return false;
     telemetryState.laps = payload.laps.map(deserializeLap);
-    telemetryState.lapOrder = Array.isArray(payload.lapOrder) && payload.lapOrder.length
-      ? payload.lapOrder.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
-      : telemetryState.laps.map((lap) => lap.id);
+    telemetryState.lapOrder =
+      Array.isArray(payload.lapOrder) && payload.lapOrder.length
+        ? payload.lapOrder.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
+        : telemetryState.laps.map((lap) => lap.id);
     telemetryState.lapVisibility = new Set(
       Array.isArray(payload.visibility) && payload.visibility.length
-        ? payload.visibility.filter((lapId) =>
-            telemetryState.laps.some((lap) => lap.id === lapId)
-          )
+        ? payload.visibility.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
         : telemetryState.lapOrder
     );
     uiState.savedWindows.clear();
@@ -396,11 +403,9 @@ function serializeLap(lap) {
   return {
     id: lap.id,
     name: lap.name,
-     signature: ensureLapSignature(lap),
+    signature: ensureLapSignature(lap),
     metadata: { ...lap.metadata },
-    sectors: Array.isArray(lap.sectors)
-      ? lap.sectors.map((sector) => ({ ...sector }))
-      : [],
+    sectors: Array.isArray(lap.sectors) ? lap.sectors.map((sector) => ({ ...sector })) : [],
     samples: lap.samples.map((sample) => ({
       distance: sample.distance,
       time: sample.time,
@@ -429,4 +434,102 @@ function deserializeLap(raw) {
   };
   ensureLapSignature(lap);
   return lap;
+}
+
+async function shareActiveLap() {
+  const lap = getActiveLap();
+  if (!lap) {
+    showMessage('Load a lap before sharing.', 'warning');
+    return;
+  }
+  if (isSafariBrowser()) {
+    showMessage(
+      'Sharing is only supported in Chromium-based browsers (Chrome, Edge, Brave).',
+      'warning'
+    );
+    return;
+  }
+  try {
+    const windowRange = uiState.savedWindows.get(lap.id) ?? uiState.viewWindow ?? null;
+    showMessage('Preparing share link...', 'info');
+    console.groupCollapsed('ShareLap');
+    console.log('Active lap:', lap.name, lap.signature);
+    if (windowRange) {
+      console.log('Window range:', windowRange);
+    }
+    const link = await buildShareLink(lap, windowRange);
+    console.log('Generated link length:', link.length);
+    const copied = await copyToClipboard(link);
+    if (copied) {
+      showMessage('Share link copied to clipboard.', 'success');
+      console.log('Link copied to clipboard');
+    } else {
+      showMessage('Copy the share link below.', 'warning');
+      prompt('Copy this share link', link);
+    }
+    console.groupEnd();
+  } catch (error) {
+    console.error(error);
+    showError('Failed to build share link.', error);
+    console.groupEnd?.();
+  }
+}
+
+async function copyToClipboard(text) {
+  if (!navigator.clipboard?.writeText) return false;
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function handleSharedLapParam() {
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(
+    window.location.hash.startsWith('#') ? window.location.hash.slice(1) : ''
+  );
+  let payload = params.get('share') || hashParams.get('share');
+  if (!payload) {
+    const partCount = Number(hashParams.get('shareParts'));
+    if (Number.isInteger(partCount) && partCount > 0) {
+      let combined = '';
+      for (let i = 0; i < partCount; i++) {
+        const chunk = hashParams.get(`share${i}`);
+        if (!chunk) break;
+        combined += chunk;
+      }
+      if (combined.length) {
+        payload = combined;
+      }
+    }
+  }
+  if (!payload) return;
+  try {
+    const { lap, window } = await importSharedLap(payload);
+    telemetryState.laps.push(lap);
+    telemetryState.lapOrder.push(lap.id);
+    telemetryState.lapVisibility.add(lap.id);
+    getLapColor(lap.id);
+    if (window?.start != null && window?.end != null) {
+      uiState.savedWindows.set(lap.id, window);
+    }
+    activateLap(lap.id);
+    showMessage('Loaded shared lap.', 'success');
+  } catch (error) {
+    console.error(error);
+    showError('Failed to import shared lap.', error);
+  } finally {
+    params.delete('share');
+    hashParams.delete('share');
+    hashParams.delete('shareParts');
+    Array.from(hashParams.keys())
+      .filter((key) => key.startsWith('share'))
+      .forEach((key) => hashParams.delete(key));
+    const newQuery = params.toString();
+    const newHash = hashParams.toString();
+    const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}${newHash ? `#${newHash}` : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }
 }

@@ -88,7 +88,7 @@ export function initProgressControls(deps) {
     const windowRatios = getWindowRatios(lap);
     const isWithinWindow =
       (elements.progressWindow && elements.progressWindow.contains(event.target)) ||
-      ratio >= windowRatios.start && ratio <= windowRatios.start + windowRatios.width;
+      (ratio >= windowRatios.start && ratio <= windowRatios.start + windowRatios.width);
     if (isWithinWindow) {
       dragState.mode = 'slide';
       dragState.windowStartRatio = windowRatios.start;

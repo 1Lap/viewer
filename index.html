@@ -94,15 +94,15 @@
         border-color: var(--accent);
       }
 
-    main {
-      flex: 1;
-      padding: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      width: min(95vw, 1800px);
-      margin: 0 auto;
-    }
+      main {
+        flex: 1;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        width: min(95vw, 1800px);
+        margin: 0 auto;
+      }
 
       .panel {
         background: var(--panel-bg);
@@ -163,6 +163,32 @@
         font-size: 1rem;
       }
 
+      .lap-info header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+      }
+
+      .share-btn {
+        border: 1px solid var(--border);
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 0.25rem 0.9rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition:
+          background 0.2s ease,
+          color 0.2s ease,
+          border-color 0.2s ease;
+      }
+
+      .share-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
       .lap-meta {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -185,38 +211,38 @@
         margin-bottom: 0.15rem;
       }
 
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr);
-      grid-auto-rows: minmax(0, auto);
-      grid-auto-flow: dense;
-      gap: 1.25rem;
-      align-items: start;
-    }
-    .layout > .lane {
-      grid-column: 2;
-    }
-
-    @media (max-width: 1200px) {
       .layout {
-        grid-template-columns: 1fr;
-      }
-      .track-panel {
-        grid-row: auto;
+        display: grid;
+        grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.1fr);
+        grid-auto-rows: minmax(0, auto);
+        grid-auto-flow: dense;
+        gap: 1.25rem;
+        align-items: start;
       }
       .layout > .lane {
-        grid-column: 1;
+        grid-column: 2;
       }
-    }
 
-    @media (min-width: 1600px) {
-      .layout {
-        grid-template-columns: minmax(320px, 0.8fr) repeat(2, minmax(0, 1fr));
+      @media (max-width: 1200px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .track-panel {
+          grid-row: auto;
+        }
+        .layout > .lane {
+          grid-column: 1;
+        }
       }
-      .layout > .lane {
-        grid-column: auto;
+
+      @media (min-width: 1600px) {
+        .layout {
+          grid-template-columns: minmax(320px, 0.8fr) repeat(2, minmax(0, 1fr));
+        }
+        .layout > .lane {
+          grid-column: auto;
+        }
       }
-    }
 
       .track-panel {
         grid-column: 1;
@@ -234,15 +260,15 @@
         flex-direction: column;
       }
 
-    #trackCanvas {
-      width: 100%;
-      flex: 1;
-      height: 100%;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: var(--panel-bg);
-      display: block;
-    }
+      #trackCanvas {
+        width: 100%;
+        flex: 1;
+        height: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-bg);
+        display: block;
+      }
 
       .lap-files {
         display: flex;
@@ -540,7 +566,10 @@
       </section>
 
       <section class="panel lap-info">
-        <h2>Lap overview</h2>
+        <header>
+          <h2>Lap overview</h2>
+          <button id="shareLap" class="share-btn" type="button">Share active lap</button>
+        </header>
         <div class="lap-meta">
           <div>
             <span class="label">Track</span>
@@ -651,6 +680,4 @@
     <script type="module" src="js/app.js"></script>
   </body>
 </html>
-      .progress-window:active {
-        cursor: grabbing;
-      }
+.progress-window:active { cursor: grabbing; }

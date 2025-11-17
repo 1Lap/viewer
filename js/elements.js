@@ -13,7 +13,8 @@ export const elements = {
   sectorButtons: null,
   progressWindow: null,
   progressTrack: null,
-  themeToggle: null
+  themeToggle: null,
+  shareLapBtn: null
 };
 
 let sectorCursor = null;
@@ -34,6 +35,7 @@ export function initDomElements() {
   elements.progressWindow = document.getElementById('progressWindow');
   elements.progressTrack = document.querySelector('.progress-track');
   elements.themeToggle = document.getElementById('themeToggle');
+  elements.shareLapBtn = document.getElementById('shareLap');
 
   if (!sectorCursor && elements.progressTrack) {
     sectorCursor = document.createElement('div');

@@ -12,15 +12,7 @@
  */
 /** @typedef {import('./parser.js').Lap} Lap */
 
-export function createLapSignature({
-  name,
-  track,
-  car,
-  driver,
-  lapTime,
-  lapLength,
-  sampleCount
-}) {
+export function createLapSignature({ name, track, car, driver, lapTime, lapLength, sampleCount }) {
   const safe = (value, fallback = 'unknown') =>
     value == null || value === '' ? fallback : String(value).toLowerCase();
   const timePart =

@@ -366,8 +366,7 @@ function buildDeltaDatasets(lap) {
   const reference = getActiveLap();
   if (!reference || !reference.samples.length || !lap.samples.length) return [];
   const hasComparison = telemetryState.laps.some(
-    (candidate) =>
-      candidate.id !== reference.id && telemetryState.lapVisibility.has(candidate.id)
+    (candidate) => candidate.id !== reference.id && telemetryState.lapVisibility.has(candidate.id)
   );
   if (lap.id === reference.id) {
     if (!hasComparison) return [];
