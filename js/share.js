@@ -33,9 +33,7 @@ export async function buildShareLink(lap, windowRange) {
   const url = getBaseUrl();
   if (encodedPayload.length > 8000) {
     url.searchParams.delete('share');
-    const hashParams = new URLSearchParams(
-      url.hash.startsWith('#') ? url.hash.slice(1) : ''
-    );
+    const hashParams = new URLSearchParams(url.hash.startsWith('#') ? url.hash.slice(1) : '');
     const chunkSize = 7500;
     const chunks = [];
     for (let i = 0; i < encodedPayload.length; i += chunkSize) {
@@ -46,9 +44,7 @@ export async function buildShareLink(lap, windowRange) {
     url.hash = `#${hashParams.toString()}`;
   } else {
     url.searchParams.set('share', encodedPayload);
-    const hashParams = new URLSearchParams(
-      url.hash.startsWith('#') ? url.hash.slice(1) : ''
-    );
+    const hashParams = new URLSearchParams(url.hash.startsWith('#') ? url.hash.slice(1) : '');
     hashParams.delete('shareParts');
     Array.from(hashParams.keys())
       .filter((key) => key.startsWith('share'))

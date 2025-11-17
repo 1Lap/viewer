@@ -112,14 +112,8 @@ async function handleFiles(files) {
   if (!files.length) return;
   showMessage('Loading...');
 
-  const {
-    loadedCount,
-    failedCount,
-    duplicateCount,
-    duplicateFiles,
-    lastLoadedId,
-    errors
-  } = await loadLapFiles(files);
+  const { loadedCount, failedCount, duplicateCount, duplicateFiles, lastLoadedId, errors } =
+    await loadLapFiles(files);
   const preferredLapId = findPreferredLapId();
   if (preferredLapId) {
     activateLap(preferredLapId);
@@ -143,7 +137,9 @@ async function handleFiles(files) {
       duplicateFiles && duplicateFiles.length
         ? ` (${duplicateFiles.slice(0, 3).join(', ')}${duplicateFiles.length > 3 ? '…' : ''})`
         : '';
-    messages.push(`Skipped ${duplicateCount} duplicate lap${duplicateCount === 1 ? '' : 's'}${namePreview}.`);
+    messages.push(
+      `Skipped ${duplicateCount} duplicate lap${duplicateCount === 1 ? '' : 's'}${namePreview}.`
+    );
   }
   if (failedCount && !errors.length) {
     messages.push(`Failed ${failedCount}. Check console for details.`);
@@ -347,12 +343,7 @@ function updateThemeToggle(theme) {
 function isSafariBrowser() {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
-  return (
-    /Safari/.test(ua) &&
-    !/Chrome/.test(ua) &&
-    !/Chromium/.test(ua) &&
-    !/Edg/.test(ua)
-  );
+  return /Safari/.test(ua) && !/Chrome/.test(ua) && !/Chromium/.test(ua) && !/Edg/.test(ua);
 }
 
 function persistLapSession() {
@@ -378,14 +369,13 @@ function restoreLapSession() {
     const payload = JSON.parse(raw);
     if (!payload?.laps?.length) return false;
     telemetryState.laps = payload.laps.map(deserializeLap);
-    telemetryState.lapOrder = Array.isArray(payload.lapOrder) && payload.lapOrder.length
-      ? payload.lapOrder.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
-      : telemetryState.laps.map((lap) => lap.id);
+    telemetryState.lapOrder =
+      Array.isArray(payload.lapOrder) && payload.lapOrder.length
+        ? payload.lapOrder.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
+        : telemetryState.laps.map((lap) => lap.id);
     telemetryState.lapVisibility = new Set(
       Array.isArray(payload.visibility) && payload.visibility.length
-        ? payload.visibility.filter((lapId) =>
-            telemetryState.laps.some((lap) => lap.id === lapId)
-          )
+        ? payload.visibility.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
         : telemetryState.lapOrder
     );
     uiState.savedWindows.clear();
@@ -413,11 +403,9 @@ function serializeLap(lap) {
   return {
     id: lap.id,
     name: lap.name,
-     signature: ensureLapSignature(lap),
+    signature: ensureLapSignature(lap),
     metadata: { ...lap.metadata },
-    sectors: Array.isArray(lap.sectors)
-      ? lap.sectors.map((sector) => ({ ...sector }))
-      : [],
+    sectors: Array.isArray(lap.sectors) ? lap.sectors.map((sector) => ({ ...sector })) : [],
     samples: lap.samples.map((sample) => ({
       distance: sample.distance,
       time: sample.time,
@@ -455,7 +443,10 @@ async function shareActiveLap() {
     return;
   }
   if (isSafariBrowser()) {
-    showMessage('Sharing is only supported in Chromium-based browsers (Chrome, Edge, Brave).', 'warning');
+    showMessage(
+      'Sharing is only supported in Chromium-based browsers (Chrome, Edge, Brave).',
+      'warning'
+    );
     return;
   }
   try {

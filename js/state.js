@@ -53,9 +53,7 @@ export function getLapColor(lapId) {
  */
 export function syncLapColorsToOrder() {
   const orderedIds = telemetryState.lapOrder.length
-    ? telemetryState.lapOrder.filter((lapId) =>
-        telemetryState.laps.some((lap) => lap.id === lapId)
-      )
+    ? telemetryState.lapOrder.filter((lapId) => telemetryState.laps.some((lap) => lap.id === lapId))
     : telemetryState.laps.map((lap) => lap.id);
 
   telemetryState.lapColors.clear();
