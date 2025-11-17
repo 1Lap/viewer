@@ -22,6 +22,8 @@
         --accent-soft: rgba(47, 91, 234, 0.1);
         --lane-throttle: #33a02c;
         --lane-brake: #d62728;
+        --cursor-color: #f97316;
+        --cursor-glow: rgba(249, 115, 22, 0.35);
       }
 
       :root[data-theme='dark'] {
@@ -35,6 +37,8 @@
         --accent-soft: rgba(96, 165, 250, 0.2);
         --lane-throttle: #22c55e;
         --lane-brake: #f87171;
+        --cursor-color: #fb923c;
+        --cursor-glow: rgba(251, 146, 60, 0.6);
       }
 
       * {
@@ -502,8 +506,10 @@
         position: absolute;
         top: 0;
         bottom: 0;
-        width: 2px;
-        background: var(--accent);
+        width: 3px;
+        margin-left: -1.5px;
+        background: var(--cursor-color);
+        box-shadow: 0 0 8px var(--cursor-glow);
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.1s ease;

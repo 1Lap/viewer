@@ -91,9 +91,16 @@ export function initCharts(deps) {
       if (Number.isNaN(xPixel)) return;
       const ctx = chart.ctx;
       ctx.save();
-      ctx.strokeStyle = '#11182733';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
+      const cursorColor =
+        getComputedStyle(document.documentElement).getPropertyValue('--cursor-color')?.trim() ||
+        '#f97316';
+      ctx.strokeStyle = cursorColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.shadowColor =
+        getComputedStyle(document.documentElement).getPropertyValue('--cursor-glow')?.trim() ||
+        'rgba(249, 115, 22, 0.35)';
+      ctx.shadowBlur = 6;
       ctx.beginPath();
       ctx.moveTo(xPixel, chart.chartArea.top);
       ctx.lineTo(xPixel, chart.chartArea.bottom);
