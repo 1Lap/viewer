@@ -24,6 +24,29 @@ test('parseLapFile builds lap metadata and samples', () => {
   assert.equal(lap.samples[1].throttle, 100);
 });
 
+const MVP_FILE = `Format,LMUTelemetry v2
+Version,1
+Player,Dean Davids
+TrackName,Algarve International Circuit
+CarName,Toyota GR010
+SessionUTC,2025-11-18T13:52:51Z
+LapTime [s],123.456
+TrackLen [m],4689.0
+
+LapDistance [m],LapTime [s],ThrottlePercentage [%],BrakePercentage [%],Speed [km/h],X [m],Y [m]
+0,0,0,0,0,0,0
+50,2.5,100,0,180,20,5
+`;
+
+test('parseLapFile reads MVP metadata block', () => {
+  const lap = parseLapFile(MVP_FILE, 'mvp.csv');
+  assert.equal(lap.metadata.track, 'Algarve International Circuit');
+  assert.equal(lap.metadata.car, 'Toyota GR010');
+  assert.equal(lap.metadata.driver, 'Dean Davids');
+  assert.equal(lap.metadata.lapTime, 123.456);
+  assert.equal(lap.metadata.lapLength, 4689);
+});
+
 test('formatSeconds renders friendly labels', () => {
   assert.equal(formatSeconds(95.432), '1:35.432');
   assert.equal(formatSeconds(null), '—');

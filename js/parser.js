@@ -71,6 +71,20 @@ export function parseLapFile(text, fileName) {
   let lapTimeSeconds = null;
   let trackLength = null;
   let fallbackSectors = [];
+  const metadataOverrides = {};
+
+  const metadataKeys = {
+    format: 'format',
+    version: 'version',
+    player: 'player',
+    trackname: 'track',
+    carname: 'car',
+    sessionutc: 'sessionUtc',
+    laptimes: 'lapTime',
+    laptime: 'lapTime',
+    tracklenm: 'trackLen',
+    tracklen: 'trackLen'
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -78,6 +92,14 @@ export function parseLapFile(text, fileName) {
     const line = raw.trim();
     if (!line) continue;
     const lower = line.toLowerCase();
+    const parts = splitLine(line, delimiter);
+    if (parts.length === 2) {
+      const key = normaliseHeader(parts[0]);
+      if (metadataKeys[key]) {
+        metadataOverrides[metadataKeys[key]] = parts[1] || '';
+        continue;
+      }
+    }
 
     if (lower.startsWith('player')) {
       const parts = splitLine(line, delimiter);
@@ -123,6 +145,22 @@ export function parseLapFile(text, fileName) {
 
   if (telemetryHeaderIndex === -1) {
     throw new Error('Could not locate telemetry header row (LapDistance, LapTime, ...).');
+  }
+
+  if (metadataOverrides.track) {
+    trackName = metadataOverrides.track;
+  }
+  if (metadataOverrides.car) {
+    carName = metadataOverrides.car;
+  }
+  if (metadataOverrides.player) {
+    driverName = metadataOverrides.player;
+  }
+  if (metadataOverrides.lapTime != null) {
+    lapTimeSeconds = toNumber(metadataOverrides.lapTime) ?? lapTimeSeconds;
+  }
+  if (metadataOverrides.trackLen != null) {
+    trackLength = toNumber(metadataOverrides.trackLen) ?? trackLength;
   }
 
   const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);

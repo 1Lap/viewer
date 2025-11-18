@@ -6,11 +6,25 @@ import { formatLapLabel, interpolateLapValue } from './utils.js';
 let setCursorDistance = () => {};
 let setViewWindow = () => {};
 
+const GEAR_SHIFT_MASK_DISTANCE = 1.2;
+
+function colorWithAlpha(hexColor, alpha) {
+  if (typeof hexColor !== 'string' || !hexColor.startsWith('#')) return hexColor;
+  const normalized = hexColor.length === 4
+    ? `#${[...hexColor.slice(1)].map((char) => char + char).join('')}`
+    : hexColor;
+  if (normalized.length !== 7) return hexColor;
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const laneConfigs = [
   {
     key: 'throttle',
     canvasId: 'throttleLane',
-    buildDatasets: createBasicDatasetBuilder('throttle'),
+    buildDatasets: buildThrottleDatasets,
     options: {}
   },
   {
@@ -34,22 +48,31 @@ const laneConfigs = [
     }
   },
   {
-    key: 'gearRpm',
-    canvasId: 'gearRpmLane',
-    buildDatasets: buildGearRpmDatasets,
+    key: 'rpm',
+    canvasId: 'rpmLane',
+    buildDatasets: createBasicDatasetBuilder('rpm', 'RPM'),
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+          suggestedMax: 11000,
+          title: { display: true, text: 'RPM' },
+          grid: { display: false }
+        }
+      }
+    }
+  },
+  {
+    key: 'gear',
+    canvasId: 'gearLane',
+    buildDatasets: buildGearDatasets,
     options: {
       scales: {
         y: {
           beginAtZero: true,
           suggestedMax: 7,
+          ticks: { stepSize: 1, precision: 0 },
           title: { display: true, text: 'Gear' }
-        },
-        rpm: {
-          position: 'right',
-          beginAtZero: true,
-          suggestedMax: 11000,
-          title: { display: true, text: 'RPM' },
-          grid: { display: false }
         }
       }
     }
@@ -321,45 +344,34 @@ function createBasicDatasetBuilder(sampleKey, labelSuffix = '') {
         backgroundColor: 'transparent',
         borderWidth: 2,
         pointRadius: 0,
+        cubicInterpolationMode: 'monotone',
+        tension: 0.3,
+        spanGaps: false,
         data
       }
     ];
   };
 }
 
-function buildGearRpmDatasets(lap) {
+function buildGearDatasets(lap) {
   const color = getLapColor(lap.id);
-  const gearData = lap.samples
-    .filter((s) => s.gear != null)
-    .map((s) => ({ x: s.distance, y: s.gear }));
-  const rpmData = lap.samples
-    .filter((s) => s.rpm != null)
-    .map((s) => ({ x: s.distance, y: s.rpm }));
-  const datasets = [];
-  if (gearData.length) {
-    datasets.push({
+  const gearSamples = lap.samples
+    .filter((sample) => sample.gear != null && sample.distance != null)
+    .map((sample) => ({ x: sample.distance, y: sample.gear }));
+  if (!gearSamples.length) return [];
+  return [
+    {
       label: `${formatLapLabel(lap)} gear`,
       borderColor: color,
-      backgroundColor: 'transparent',
+      backgroundColor: colorWithAlpha(color, 0.2),
       borderWidth: 1.5,
-      borderDash: [4, 2],
       pointRadius: 0,
-      yAxisID: 'y',
-      data: gearData
-    });
-  }
-  if (rpmData.length) {
-    datasets.push({
-      label: `${formatLapLabel(lap)} rpm`,
-      borderColor: color,
-      backgroundColor: 'transparent',
-      borderWidth: 2,
-      pointRadius: 0,
-      yAxisID: 'rpm',
-      data: rpmData
-    });
-  }
-  return datasets;
+      stepped: true,
+      fill: 'origin',
+      tension: 0,
+      data: gearSamples
+    }
+  ];
 }
 
 function buildDeltaDatasets(lap) {
@@ -435,4 +447,73 @@ function applyDeltaScale(chart) {
   const range = maxMagnitude > 0 ? maxMagnitude * 1.1 : 1;
   chart.options.scales.y.min = -range;
   chart.options.scales.y.max = range;
+}
+
+function buildThrottleDatasets(lap) {
+  const color = getLapColor(lap.id);
+  const samples = buildMaskedThrottleData(lap.samples);
+  if (!samples.length) return [];
+  return [
+    {
+      label: formatLapLabel(lap),
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      cubicInterpolationMode: 'monotone',
+      tension: 0.3,
+      spanGaps: true,
+      data: samples
+    }
+  ];
+}
+
+function buildMaskedThrottleData(samples) {
+  if (!samples?.length) return [];
+  const windows = computeShiftWindows(samples, GEAR_SHIFT_MASK_DISTANCE);
+  const data = [];
+  let windowIndex = 0;
+  samples.forEach((sample) => {
+    if (sample.throttle == null || sample.distance == null) return;
+    while (windowIndex < windows.length && sample.distance > windows[windowIndex].end) {
+      windowIndex++;
+    }
+    const inWindow =
+      windowIndex < windows.length &&
+      sample.distance >= windows[windowIndex].start &&
+      sample.distance <= windows[windowIndex].end;
+    data.push({ x: sample.distance, y: inWindow ? null : sample.throttle });
+  });
+  return data;
+}
+
+function computeShiftWindows(samples, windowSizeMeters) {
+  if (!samples?.length) return [];
+  const windows = [];
+  let previousGear = null;
+  samples.forEach((sample) => {
+    const gear = sample.gear;
+    if (gear == null) return;
+    if (previousGear != null && gear !== previousGear && sample.distance != null) {
+      const center = sample.distance;
+      windows.push({
+        start: Math.max(0, center - windowSizeMeters),
+        end: center + windowSizeMeters
+      });
+    }
+    previousGear = gear;
+  });
+  if (!windows.length) return windows;
+  windows.sort((a, b) => a.start - b.start);
+  const merged = [windows[0]];
+  for (let i = 1; i < windows.length; i++) {
+    const last = merged[merged.length - 1];
+    const current = windows[i];
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+  return merged;
 }
