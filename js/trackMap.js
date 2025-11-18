@@ -1,6 +1,7 @@
 import { elements } from './elements.js';
 import { telemetryState, uiState, projectionState, getLapColor, getActiveLap } from './state.js';
 import { findSampleAtDistance } from './utils.js';
+import { loadTrackMapByName } from './trackMapLoader.js';
 
 const panState = {
   active: false,
@@ -17,7 +18,7 @@ const hoverDeps = {
   setViewWindow: null
 };
 
-export function renderTrackMap(lap) {
+export async function renderTrackMap(lap) {
   if (!elements?.trackCanvas) return;
   const canvas = elements.trackCanvas;
   const ctx = canvas.getContext('2d');
@@ -109,6 +110,14 @@ export function renderTrackMap(lap) {
     return { x, y };
   }
 
+  // Load and render track map (if available)
+  if (lap.metadata?.track) {
+    const trackMap = await loadTrackMapByName(lap.metadata.track);
+    if (trackMap) {
+      renderTrackLimits(ctx, trackMap, toCanvasCoords);
+    }
+  }
+
   telemetryState.laps.forEach((lapItem) => {
     if (!telemetryState.lapVisibility.has(lapItem.id)) return;
     const lapPoints = lapItem.samples.filter((s) => s.x != null && getPlanarY(s) != null);
@@ -177,6 +186,74 @@ export function renderTrackMap(lap) {
       }
     });
   }
+}
+
+/**
+ * Render track limit lines from track map data.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {Object} trackMap - Track map data
+ * @param {Function} transform - Transform function (world coords → canvas coords)
+ */
+function renderTrackLimits(ctx, trackMap, transform) {
+  const { leftEdge, rightEdge, centerline } = trackMap;
+
+  if (!leftEdge || !rightEdge) return;
+
+  ctx.save();
+
+  // Draw left edge
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.4;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+
+  for (let i = 0; i < leftEdge.length; i++) {
+    const [x, z] = leftEdge[i];
+    const screen = transform({ x, z });
+    if (i === 0) {
+      ctx.moveTo(screen.x, screen.y);
+    } else {
+      ctx.lineTo(screen.x, screen.y);
+    }
+  }
+  ctx.stroke();
+
+  // Draw right edge
+  ctx.beginPath();
+  for (let i = 0; i < rightEdge.length; i++) {
+    const [x, z] = rightEdge[i];
+    const screen = transform({ x, z });
+    if (i === 0) {
+      ctx.moveTo(screen.x, screen.y);
+    } else {
+      ctx.lineTo(screen.x, screen.y);
+    }
+  }
+  ctx.stroke();
+
+  // Optionally draw centerline (dashed, subtle)
+  if (centerline && centerline.length > 0) {
+    ctx.strokeStyle = '#9ca3af';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+
+    for (let i = 0; i < centerline.length; i++) {
+      const [x, z] = centerline[i];
+      const screen = transform({ x, z });
+      if (i === 0) {
+        ctx.moveTo(screen.x, screen.y);
+      } else {
+        ctx.lineTo(screen.x, screen.y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 export function initTrackHover({ setCursorDistance, setViewWindow }) {

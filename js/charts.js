@@ -10,9 +10,10 @@ const GEAR_SHIFT_MASK_DISTANCE = 1.2;
 
 function colorWithAlpha(hexColor, alpha) {
   if (typeof hexColor !== 'string' || !hexColor.startsWith('#')) return hexColor;
-  const normalized = hexColor.length === 4
-    ? `#${[...hexColor.slice(1)].map((char) => char + char).join('')}`
-    : hexColor;
+  const normalized =
+    hexColor.length === 4
+      ? `#${[...hexColor.slice(1)].map((char) => char + char).join('')}`
+      : hexColor;
   if (normalized.length !== 7) return hexColor;
   const r = parseInt(normalized.slice(1, 3), 16);
   const g = parseInt(normalized.slice(3, 5), 16);

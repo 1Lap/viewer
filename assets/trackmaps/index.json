@@ -1,0 +1,11 @@
+{
+  "tracks": [
+    {
+      "id": "algarve_international_circuit",
+      "name": "Algarve International Circuit",
+      "file": "algarve_gp.json",
+      "version": 1,
+      "generatedAt": "2025-11-18T06:26:27.453Z"
+    }
+  ]
+}

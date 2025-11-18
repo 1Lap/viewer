@@ -49,6 +49,59 @@ function normaliseHeader(label) {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function stripTrailingDelimiters(value, delimiter) {
+  if (!value) return value;
+  const escaped = delimiter.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  return value.replace(new RegExp(`${escaped}+$`), '').trim();
+}
+
+function extractMetadataOverrides(lines, delimiter, metadataKeys) {
+  const overrides = {};
+  let startIndex = 0;
+  let firstNonEmpty = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] && lines[i].trim()) {
+      firstNonEmpty = i;
+      break;
+    }
+  }
+  if (firstNonEmpty === -1) {
+    return { overrides, nextIndex: 0 };
+  }
+  const firstLine = lines[firstNonEmpty].trim();
+  const firstParts = splitLine(firstLine, delimiter);
+  if (!firstParts.length || normaliseHeader(firstParts[0]) !== 'format') {
+    return { overrides, nextIndex: firstNonEmpty };
+  }
+  startIndex = firstNonEmpty;
+  let i = startIndex;
+  for (; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw) continue;
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      i++;
+      break;
+    }
+    const delimiterIndex = trimmed.indexOf(delimiter);
+    if (delimiterIndex === -1) {
+      break;
+    }
+    const keyRaw = trimmed
+      .slice(0, delimiterIndex)
+      .replace(/^\uFEFF/, '')
+      .trim();
+    const normalizedKey = normaliseHeader(keyRaw);
+    if (!metadataKeys[normalizedKey]) {
+      break;
+    }
+    const valueRaw = trimmed.slice(delimiterIndex + 1).trim();
+    const value = stripTrailingDelimiters(valueRaw, delimiter);
+    overrides[metadataKeys[normalizedKey]] = value;
+  }
+  return { overrides, nextIndex: i };
+}
+
 function toNumber(value) {
   if (value == null || value === '') return null;
   const num = Number(value);
@@ -71,8 +124,6 @@ export function parseLapFile(text, fileName) {
   let lapTimeSeconds = null;
   let trackLength = null;
   let fallbackSectors = [];
-  const metadataOverrides = {};
-
   const metadataKeys = {
     format: 'format',
     version: 'version',
@@ -86,20 +137,18 @@ export function parseLapFile(text, fileName) {
     tracklen: 'trackLen'
   };
 
-  for (let i = 0; i < lines.length; i++) {
+  const { overrides: metadataOverrides, nextIndex } = extractMetadataOverrides(
+    lines,
+    delimiter,
+    metadataKeys
+  );
+
+  for (let i = nextIndex; i < lines.length; i++) {
     const raw = lines[i];
     if (!raw) continue;
     const line = raw.trim();
     if (!line) continue;
     const lower = line.toLowerCase();
-    const parts = splitLine(line, delimiter);
-    if (parts.length === 2) {
-      const key = normaliseHeader(parts[0]);
-      if (metadataKeys[key]) {
-        metadataOverrides[metadataKeys[key]] = parts[1] || '';
-        continue;
-      }
-    }
 
     if (lower.startsWith('player')) {
       const parts = splitLine(line, delimiter);

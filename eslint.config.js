@@ -27,5 +27,17 @@ export default [
       'no-console': ['warn', { allow: ['error'] }]
     }
   },
+  {
+    files: ['tools/**/*.js'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        ...globals.node
+      }
+    },
+    rules: {
+      'no-console': 'off'
+    }
+  },
   prettierConfig
 ];
