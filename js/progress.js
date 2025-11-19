@@ -89,8 +89,7 @@ export function initProgressControls(deps) {
 
     // Check if viewing the full lap
     const isFullLap =
-      Math.abs(windowRatios.start) < 0.01 &&
-      Math.abs(windowRatios.width - 1) < 0.01;
+      Math.abs(windowRatios.start) < 0.01 && Math.abs(windowRatios.width - 1) < 0.01;
 
     const isWithinWindow =
       !isFullLap &&
@@ -198,9 +197,7 @@ export function updateProgressWindow(lap) {
 
   // Hide progress window if viewing the full lap
   const tolerance = Math.max(0.01, span * 0.01);
-  const isFullLap =
-    Math.abs(start) <= tolerance &&
-    Math.abs(end - span) <= tolerance;
+  const isFullLap = Math.abs(start) <= tolerance && Math.abs(end - span) <= tolerance;
 
   if (isFullLap) {
     elements.progressWindow.style.left = '0%';
