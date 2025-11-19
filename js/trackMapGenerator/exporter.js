@@ -195,9 +195,7 @@ Diagnostics:
       ? `${metadata.guardrailClamps.leftClamped} left / ${metadata.guardrailClamps.rightClamped} right`
       : 'n/a'
   }
-  Inside flips: ${
-    metadata.insideFlipCount != null ? metadata.insideFlipCount : 'n/a'
-  }
+  Inside flips: ${metadata.insideFlipCount != null ? metadata.insideFlipCount : 'n/a'}
   Apex anchors: ${metadata.apexAnchorCount != null ? metadata.apexAnchorCount : 'n/a'}
   Sample spacing: ${metadata.spacingMeters ? `${metadata.spacingMeters.toFixed(3)} m` : 'n/a'}
   Width slope clamps: ${

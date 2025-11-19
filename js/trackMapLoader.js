@@ -94,8 +94,7 @@ function normalizeTrackMapData(rawMap, trackId) {
   const smoothingWindow = rawMap.smoothingWindow ?? meta.smoothingWindow ?? null;
   const generatedAt = rawMap.generatedAt ?? meta.generatedAt ?? null;
   const trackName = rawMap.trackName ?? meta.trackName ?? null;
-  const viewBox =
-    normalizeViewBox(rawMap.viewBox) || computeViewBox([left, right, center]);
+  const viewBox = normalizeViewBox(rawMap.viewBox) || computeViewBox([left, right, center]);
 
   return {
     trackId: rawMap.trackId ?? trackId ?? null,

@@ -6,7 +6,13 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family:
+          'Inter',
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
         background-color: #0f172a;
         color: #e2e8f0;
       }
@@ -132,7 +138,10 @@
   <body>
     <header>
       <h1>Simple Track Map Preview</h1>
-      <p style="color:#94a3b8;margin:0;">Drop calibration CSVs, resample directly, and eyeball the lap shape without the full generator.</p>
+      <p style="color: #94a3b8; margin: 0">
+        Drop calibration CSVs, resample directly, and eyeball the lap shape without the full
+        generator.
+      </p>
     </header>
     <main>
       <section class="panel">
@@ -154,11 +163,11 @@
             <input type="range" id="smoothWindow" min="1" max="25" step="2" value="1" />
           </label>
         </div>
-        <div class="toggles" style="margin-top:12px;">
+        <div class="toggles" style="margin-top: 12px">
           <label><input type="checkbox" id="swapSides" /> Swap left/right display</label>
           <label><input type="checkbox" id="showMarkers" /> Show sample markers</label>
         </div>
-        <div class="row" style="margin-top:16px;">
+        <div class="row" style="margin-top: 16px">
           <button id="downloadBtn" disabled>Download JSON preview</button>
           <button id="viewPreviewBtn" disabled>View in preview tool</button>
           <button id="clearBtn">Clear</button>
@@ -169,7 +178,7 @@
         <canvas id="trackCanvas" width="1200" height="640"></canvas>
       </section>
       <section class="panel">
-        <h2 style="margin-top:0;">Diagnostics</h2>
+        <h2 style="margin-top: 0">Diagnostics</h2>
         <pre id="stats">Drop at least one CSV to get started.</pre>
       </section>
     </main>

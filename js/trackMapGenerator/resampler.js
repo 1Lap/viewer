@@ -180,11 +180,7 @@ export function resampleOnGrid(samples, gridSize) {
  * @returns {{grids:Object, rawSamples:Object, metadata:Object}}
  */
 export function resampleCalibrationLaps(classifiedLaps, options = {}) {
-  const {
-    sampleCount: explicitSampleCount,
-    spacingMeters = 0.5,
-    alignHeading = true
-  } = options;
+  const { sampleCount: explicitSampleCount, spacingMeters = 0.5, alignHeading = true } = options;
 
   const lapLengths = [];
   for (const { lap } of classifiedLaps) {
@@ -285,8 +281,7 @@ export function resampleCalibrationLaps(classifiedLaps, options = {}) {
     metadata: {
       trackLength: averageLength,
       sampleCount: gridSize,
-      spacingMeters:
-        averageLength && gridSize > 1 ? averageLength / (gridSize - 1) : spacingMeters,
+      spacingMeters: averageLength && gridSize > 1 ? averageLength / (gridSize - 1) : spacingMeters,
       headingOffsets
     }
   };

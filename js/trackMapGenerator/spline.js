@@ -10,7 +10,7 @@ const DEFAULT_POINT_TARGET = 40;
 
 function wrap(points, index) {
   const n = points.length;
-  return points[(index % n + n) % n];
+  return points[((index % n) + n) % n];
 }
 
 function evaluateBezier(p0, c1, c2, p3, t) {
@@ -221,7 +221,14 @@ function cloneMissingSide(grids, widthMeters) {
   else grids.left = clone;
 }
 
-function determineInsideEdges(centerPairs, leftPairs, rightPairs, options, leftPoints, rightPoints) {
+function determineInsideEdges(
+  centerPairs,
+  leftPairs,
+  rightPairs,
+  options,
+  leftPoints,
+  rightPoints
+) {
   const { spacingMeters = 1, hysteresisMeters = 8 } = options;
   const centerAngles = computeSignedAngles(centerPairs);
   const leftAngles = leftPairs ? computeSignedAngles(leftPairs) : null;
@@ -237,13 +244,15 @@ function determineInsideEdges(centerPairs, leftPairs, rightPairs, options, leftP
   let flipCount = 0;
 
   const pickCandidate = (index) => {
-    const angleSign = Math.abs(centerAngles[index]) > 1e-4 ? Math.sign(centerAngles[index]) : lastSign;
+    const angleSign =
+      Math.abs(centerAngles[index]) > 1e-4 ? Math.sign(centerAngles[index]) : lastSign;
     const leftAngle = leftAngles ? leftAngles[index] : null;
     const rightAngle = rightAngles ? rightAngles[index] : null;
     const leftScore = leftAngle != null ? Math.abs(leftAngle) : -1;
     const rightScore = rightAngle != null ? Math.abs(rightAngle) : -1;
     const leftMatch = leftAngle != null && Math.sign(leftAngle) === angleSign && leftScore > 1e-4;
-    const rightMatch = rightAngle != null && Math.sign(rightAngle) === angleSign && rightScore > 1e-4;
+    const rightMatch =
+      rightAngle != null && Math.sign(rightAngle) === angleSign && rightScore > 1e-4;
 
     if (leftMatch && !rightMatch) return 'left';
     if (rightMatch && !leftMatch) return 'right';

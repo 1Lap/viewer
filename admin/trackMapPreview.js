@@ -174,7 +174,9 @@ function renderFileList() {
 }
 
 function ensureAssignments() {
-  const classified = state.files.filter((file) => file.type === 'left' || file.type === 'right' || file.type === 'center');
+  const classified = state.files.filter(
+    (file) => file.type === 'left' || file.type === 'right' || file.type === 'center'
+  );
   const left = classified.find((file) => file.type === 'left');
   const right = classified.find((file) => file.type === 'right');
 
@@ -341,8 +343,7 @@ function renderSummary(
 
   if (!centerlineValidation.valid && centerlineValidation.errors.length) {
     summaryChunks.push(
-      'Centerline warnings:\n' +
-        centerlineValidation.errors.map((err) => `  - ${err}`).join('\n')
+      'Centerline warnings:\n' + centerlineValidation.errors.map((err) => `  - ${err}`).join('\n')
     );
   }
 

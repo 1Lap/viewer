@@ -203,7 +203,11 @@ try {
 
   // Step 2: Resample onto common grid
   console.log('[2/9] Resampling laps onto common progress grid...');
-  const { grids, rawSamples, metadata: resampleMeta } = resampleCalibrationLaps(laps, {
+  const {
+    grids,
+    rawSamples,
+    metadata: resampleMeta
+  } = resampleCalibrationLaps(laps, {
     sampleCount: requestedSamples || undefined,
     spacingMeters
   });
@@ -299,7 +303,11 @@ try {
   console.log('  ✓ Widths smoothed with Savitzky–Golay + slope clamp');
 
   console.log('  ✓ Enforcing guardrails against calibration laps');
-  const { halfWidthLeft, halfWidthRight, stats: guardrailStats } = enforceWidthConstraints({
+  const {
+    halfWidthLeft,
+    halfWidthRight,
+    stats: guardrailStats
+  } = enforceWidthConstraints({
     centerline,
     normals,
     rawSamples,

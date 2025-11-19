@@ -181,13 +181,9 @@ export function computeSignedAngles(centerline, { circular = true } = {}) {
   if (n < 3) return angles;
 
   for (let i = 0; i < n; i++) {
-    const prev = circular
-      ? centerline[(i - 1 + n) % n]
-      : centerline[Math.max(i - 1, 0)];
+    const prev = circular ? centerline[(i - 1 + n) % n] : centerline[Math.max(i - 1, 0)];
     const curr = centerline[i];
-    const next = circular
-      ? centerline[(i + 1) % n]
-      : centerline[Math.min(i + 1, n - 1)];
+    const next = circular ? centerline[(i + 1) % n] : centerline[Math.min(i + 1, n - 1)];
 
     const v1x = curr[0] - prev[0];
     const v1y = curr[1] - prev[1];

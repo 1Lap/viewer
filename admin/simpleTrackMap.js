@@ -275,8 +275,12 @@ function render() {
     return;
   }
 
-  const leftPath = hasLeft ? smoothPath(resamplePath(state.leftLap.samples, sampleCount), smoothingWindow) : null;
-  const rightPath = hasRight ? smoothPath(resamplePath(state.rightLap.samples, sampleCount), smoothingWindow) : null;
+  const leftPath = hasLeft
+    ? smoothPath(resamplePath(state.leftLap.samples, sampleCount), smoothingWindow)
+    : null;
+  const rightPath = hasRight
+    ? smoothPath(resamplePath(state.rightLap.samples, sampleCount), smoothingWindow)
+    : null;
 
   let displayLeft = leftPath;
   let displayRight = rightPath;
@@ -409,18 +413,31 @@ function drawPath(ctx, path, bounds, color, showMarkers, lineWidth = 3, dash = [
   ctx.restore();
 }
 
-function formatStats({ sampleCount, smoothingWindow, leftPath, rightPath, leftSource, rightSource }) {
+function formatStats({
+  sampleCount,
+  smoothingWindow,
+  leftPath,
+  rightPath,
+  leftSource,
+  rightSource
+}) {
   const lines = [];
   lines.push(`Sample count: ${sampleCount}`);
   lines.push(`Smoothing window: ${smoothingWindow}`);
   if (leftPath) {
-    lines.push(`Left lap (${leftSource || 'n/a'}): length ≈ ${computePathLength(leftPath).toFixed(1)} m`);
+    lines.push(
+      `Left lap (${leftSource || 'n/a'}): length ≈ ${computePathLength(leftPath).toFixed(1)} m`
+    );
   }
   if (rightPath) {
-    lines.push(`Right lap (${rightSource || 'n/a'}): length ≈ ${computePathLength(rightPath).toFixed(1)} m`);
+    lines.push(
+      `Right lap (${rightSource || 'n/a'}): length ≈ ${computePathLength(rightPath).toFixed(1)} m`
+    );
   }
   if (leftPath && rightPath && leftPath.length === rightPath.length) {
-    const widths = leftPath.map((point, idx) => Math.hypot(point.x - rightPath[idx].x, point.y - rightPath[idx].y));
+    const widths = leftPath.map((point, idx) =>
+      Math.hypot(point.x - rightPath[idx].x, point.y - rightPath[idx].y)
+    );
     const minWidth = Math.min(...widths);
     const maxWidth = Math.max(...widths);
     const avgWidth = widths.reduce((sum, value) => sum + value, 0) / widths.length;
@@ -430,7 +447,9 @@ function formatStats({ sampleCount, smoothingWindow, leftPath, rightPath, leftSo
       .slice(0, 5)
       .map(({ idx, value }) => `    • Sample ${idx}: ${value.toFixed(2)} m`)
       .join('\n');
-    lines.push(`Width stats: min ${minWidth.toFixed(2)} m / avg ${avgWidth.toFixed(2)} m / max ${maxWidth.toFixed(2)} m`);
+    lines.push(
+      `Width stats: min ${minWidth.toFixed(2)} m / avg ${avgWidth.toFixed(2)} m / max ${maxWidth.toFixed(2)} m`
+    );
     if (narrowSections) {
       lines.push('Narrow (<3 m) samples:');
       lines.push(narrowSections);

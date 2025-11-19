@@ -365,7 +365,7 @@ function summariseClampBySector(flags, spacingMeters, sectorLength) {
       sector,
       samples: end - start,
       clamped,
-      ratio: (end - start) > 0 ? clamped / (end - start) : 0
+      ratio: end - start > 0 ? clamped / (end - start) : 0
     });
   }
   return summary;
