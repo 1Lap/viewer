@@ -173,15 +173,172 @@ export function resampleOnGrid(samples, gridSize) {
  * Resample multiple classified laps onto a common grid.
  *
  * @param {Array<{type: string, lap: Object}>} classifiedLaps - Array of classified calibration laps
- * @param {number} gridSize - Number of samples in output grid
- * @returns {Object} Map of lap types to resampled grids
+ * @param {Object} options
+ * @param {number} [options.sampleCount] - Explicit grid size override
+ * @param {number} [options.spacingMeters=0.5] - Target spacing when sampleCount omitted
+ * @param {boolean} [options.alignHeading=true] - Align headings before averaging
+ * @returns {{grids:Object, rawSamples:Object, metadata:Object}}
  */
-export function resampleCalibrationLaps(classifiedLaps, gridSize) {
-  const grids = {};
+export function resampleCalibrationLaps(classifiedLaps, options = {}) {
+  const {
+    sampleCount: explicitSampleCount,
+    spacingMeters = 0.5,
+    alignHeading = true
+  } = options;
 
-  for (const { type, lap } of classifiedLaps) {
-    grids[type] = resampleOnGrid(lap.samples, gridSize);
+  const lapLengths = [];
+  for (const { lap } of classifiedLaps) {
+    const validSamples = lap.samples.filter((s) => s.x != null && getPlanarY(s) != null);
+    if (validSamples.length < 2) continue;
+    const cumulative = calculateCumulativeDistance(validSamples);
+    const length = cumulative[cumulative.length - 1] - cumulative[0];
+    if (Number.isFinite(length) && length > 0) {
+      lapLengths.push(length);
+    }
   }
 
-  return grids;
+  const averageLength = lapLengths.length
+    ? lapLengths.reduce((sum, len) => sum + len, 0) / lapLengths.length
+    : null;
+  const resolvedSampleCount = explicitSampleCount
+    ? explicitSampleCount
+    : Math.max(200, Math.round((averageLength || 0) / Math.max(spacingMeters, 0.1))) || 1024;
+  const gridSize = resolvedSampleCount;
+
+  const grouped = {
+    left: [],
+    center: [],
+    right: []
+  };
+
+  let referenceHeading = null;
+  let headingOffsets = {};
+
+  for (const { type, lap, filename } of classifiedLaps) {
+    if (!grouped[type]) grouped[type] = [];
+    const grid = resampleOnGrid(lap.samples, gridSize);
+    if (alignHeading) {
+      const headings = computeHeadings(grid);
+      if (!referenceHeading) {
+        referenceHeading = headings;
+        headingOffsets[filename || type] = 0;
+        grouped[type].push(grid);
+      } else {
+        const deltas = headings.map((angle, idx) => wrapAngle(angle - referenceHeading[idx]));
+        const normalizedDelta = medianAngle(deltas.filter((value) => Number.isFinite(value)));
+        headingOffsets[filename || type] = normalizedDelta;
+        if (Number.isFinite(normalizedDelta) && Math.abs(normalizedDelta) > 1e-4) {
+          grouped[type].push(rotateGrid(grid, -normalizedDelta));
+        } else {
+          grouped[type].push(grid);
+        }
+      }
+    } else {
+      grouped[type].push(grid);
+    }
+  }
+
+  function averageGrid(gridList, label) {
+    if (!gridList.length) return null;
+    const length = gridList[0].length;
+    for (const grid of gridList) {
+      if (grid.length !== length) {
+        throw new Error(
+          `Grid size mismatch for ${label}: expected ${length} samples, got ${grid.length}.`
+        );
+      }
+    }
+    if (gridList.length === 1) {
+      return gridList[0];
+    }
+    const averaged = new Array(length);
+    for (let i = 0; i < length; i++) {
+      let sumX = 0;
+      let sumY = 0;
+      let progress = gridList[0][i].progress;
+      for (const grid of gridList) {
+        sumX += grid[i].x;
+        sumY += grid[i].y;
+      }
+      averaged[i] = {
+        progress,
+        x: sumX / gridList.length,
+        y: sumY / gridList.length
+      };
+    }
+    return averaged;
+  }
+
+  const leftGrid = averageGrid(grouped.left, 'left');
+  const rightGrid = averageGrid(grouped.right, 'right');
+  if (!leftGrid && !rightGrid) {
+    throw new Error('At least one left or right calibration lap is required.');
+  }
+
+  return {
+    grids: {
+      left: leftGrid,
+      right: rightGrid,
+      center: grouped.center.length ? averageGrid(grouped.center, 'center') : null
+    },
+    rawSamples: grouped,
+    metadata: {
+      trackLength: averageLength,
+      sampleCount: gridSize,
+      spacingMeters:
+        averageLength && gridSize > 1 ? averageLength / (gridSize - 1) : spacingMeters,
+      headingOffsets
+    }
+  };
+}
+
+function computeHeadings(grid) {
+  const n = grid.length;
+  const headings = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const prev = grid[(i - 1 + n) % n];
+    const next = grid[(i + 1) % n];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    headings[i] = Math.atan2(dy, dx);
+  }
+  return headings;
+}
+
+function wrapAngle(angle) {
+  let result = angle;
+  while (result <= -Math.PI) result += Math.PI * 2;
+  while (result > Math.PI) result -= Math.PI * 2;
+  return result;
+}
+
+function medianAngle(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function rotateGrid(grid, angle) {
+  if (!Number.isFinite(angle) || Math.abs(angle) < 1e-6) return grid;
+  let cx = 0;
+  let cy = 0;
+  for (const point of grid) {
+    cx += point.x;
+    cy += point.y;
+  }
+  cx /= grid.length;
+  cy /= grid.length;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return grid.map((point) => {
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    return {
+      ...point,
+      x: cx + dx * cos - dy * sin,
+      y: cy + dx * sin + dy * cos
+    };
+  });
 }

@@ -166,6 +166,145 @@ export function gaussianSmooth(values, sigma, circular = true) {
   return smoothed;
 }
 
+const sgKernelCache = new Map();
+
+function getSavitzkyGolayKernel(windowSize, order, spacing) {
+  const key = `${windowSize}|${order}|${spacing.toFixed(4)}`;
+  if (sgKernelCache.has(key)) {
+    return sgKernelCache.get(key);
+  }
+  const half = Math.floor(windowSize / 2);
+  const samplePositions = [];
+  const safeSpacing = Math.max(spacing, 1e-3);
+  for (let i = -half; i <= half; i++) {
+    samplePositions.push(i * safeSpacing);
+  }
+  const orderPlusOne = order + 1;
+  const A = samplePositions.map((t) => {
+    const row = new Array(orderPlusOne);
+    for (let p = 0; p < orderPlusOne; p++) {
+      row[p] = Math.pow(t, p);
+    }
+    return row;
+  });
+  const AT = transposeMatrix(A);
+  const ATA = multiplyMatrices(AT, A);
+  const ATAInv = invertMatrix(ATA);
+  const pseudoInverse = multiplyMatrices(ATAInv, AT);
+  const kernel = pseudoInverse[0];
+  sgKernelCache.set(key, kernel);
+  return kernel;
+}
+
+function transposeMatrix(matrix) {
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  const result = new Array(cols).fill(null).map(() => new Array(rows));
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      result[j][i] = matrix[i][j];
+    }
+  }
+  return result;
+}
+
+function multiplyMatrices(a, b) {
+  const rows = a.length;
+  const cols = b[0].length;
+  const inner = b.length;
+  const result = new Array(rows).fill(null).map(() => new Array(cols).fill(0));
+  for (let i = 0; i < rows; i++) {
+    for (let k = 0; k < inner; k++) {
+      for (let j = 0; j < cols; j++) {
+        result[i][j] += a[i][k] * b[k][j];
+      }
+    }
+  }
+  return result;
+}
+
+function invertMatrix(matrix) {
+  const n = matrix.length;
+  const augmented = matrix.map((row, i) => {
+    const identityRow = new Array(n).fill(0);
+    identityRow[i] = 1;
+    return [...row, ...identityRow];
+  });
+
+  for (let i = 0; i < n; i++) {
+    let pivot = augmented[i][i];
+    if (Math.abs(pivot) < 1e-12) {
+      // swap with a lower row
+      for (let r = i + 1; r < n; r++) {
+        if (Math.abs(augmented[r][i]) > Math.abs(pivot)) {
+          const temp = augmented[i];
+          augmented[i] = augmented[r];
+          augmented[r] = temp;
+          pivot = augmented[i][i];
+          break;
+        }
+      }
+    }
+    if (Math.abs(pivot) < 1e-12) {
+      throw new Error('Matrix is singular and cannot be inverted.');
+    }
+    const pivotInv = 1 / pivot;
+    for (let j = 0; j < 2 * n; j++) {
+      augmented[i][j] *= pivotInv;
+    }
+    for (let r = 0; r < n; r++) {
+      if (r === i) continue;
+      const factor = augmented[r][i];
+      for (let c = 0; c < 2 * n; c++) {
+        augmented[r][c] -= factor * augmented[i][c];
+      }
+    }
+  }
+
+  const inverse = new Array(n).fill(null).map(() => new Array(n));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      inverse[i][j] = augmented[i][j + n];
+    }
+  }
+  return inverse;
+}
+
+export function savitzkyGolaySmooth(values, windowSize = 9, options = {}) {
+  const { order = 3, spacing = 1, circular = true } = options;
+  if (!Array.isArray(values) && !(values instanceof Float64Array)) {
+    throw new Error('Savitzky-Golay smoothing requires an array of values.');
+  }
+  if (windowSize < 3) {
+    throw new Error('Savitzky-Golay window must be >= 3');
+  }
+  // Ensure odd window size
+  if (windowSize % 2 === 0) windowSize += 1;
+  const kernel = getSavitzkyGolayKernel(windowSize, order, spacing);
+  const half = Math.floor(windowSize / 2);
+  const n = values.length;
+  const result = new Float64Array(n);
+
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    let weightSum = 0;
+    for (let k = 0; k < windowSize; k++) {
+      let index = i + k - half;
+      if (circular) {
+        index = (index + n) % n;
+      } else if (index < 0 || index >= n) {
+        continue;
+      }
+      sum += kernel[k] * values[index];
+      weightSum += kernel[k];
+    }
+    // Kernel already sums to 1, but guard against numerical drift
+    result[i] = weightSum !== 0 ? sum / weightSum : values[i];
+  }
+
+  return result;
+}
+
 /**
  * Smooth centerline using Gaussian smoothing.
  *

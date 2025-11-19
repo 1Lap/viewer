@@ -19,23 +19,29 @@
 
 import { parseArgs } from 'util';
 import { resolve, dirname } from 'path';
-import { mkdir } from 'fs/promises';
+import { mkdir, writeFile } from 'fs/promises';
 import { loadCalibrationLaps, listCalibrationFiles } from '../js/trackMapGenerator/lapLoader.js';
 import { resampleCalibrationLaps } from '../js/trackMapGenerator/resampler.js';
-import { extractCenterline, validateCenterline } from '../js/trackMapGenerator/centerline.js';
-import { computeGeometry } from '../js/trackMapGenerator/geometry.js';
+import { validateCenterline } from '../js/trackMapGenerator/centerline.js';
+import { computeGeometry, computeSignedAngles } from '../js/trackMapGenerator/geometry.js';
 import {
   calculateWidths,
   detectWidthOutliers,
-  clampWidths
+  clampWidths,
+  computeTargetWidth,
+  buildConstantWidthEnvelope,
+  savitzkyGolayWidthSmooth,
+  clampWidthDeltas
 } from '../js/trackMapGenerator/width.js';
-import { smoothCenterline, smoothWidths } from '../js/trackMapGenerator/smoothing.js';
+import { smoothCenterline } from '../js/trackMapGenerator/smoothing.js';
 import { generateEdges, validateEdges } from '../js/trackMapGenerator/edges.js';
 import {
   createTrackMapData,
   exportTrackMap,
   generateSummary
 } from '../js/trackMapGenerator/exporter.js';
+import { enforceWidthConstraints } from '../js/trackMapGenerator/constraints.js';
+import { buildCenterSplineSamples } from '../js/trackMapGenerator/spline.js';
 
 // Parse command-line arguments
 const { values } = parseArgs({
@@ -45,10 +51,17 @@ const { values } = parseArgs({
     left: { type: 'string' },
     center: { type: 'string' },
     right: { type: 'string' },
-    samples: { type: 'string', default: '1024' },
+    samples: { type: 'string' },
     smooth: { type: 'string', default: '30' },
     list: { type: 'boolean', default: false },
-    help: { type: 'boolean', short: 'h', default: false }
+    help: { type: 'boolean', short: 'h', default: false },
+    pointTarget: { type: 'string' },
+    tension: { type: 'string' },
+    trackWidth: { type: 'string' },
+    spacing: { type: 'string' },
+    preview: { type: 'boolean', default: false },
+    'spline-dump': { type: 'boolean', default: false },
+    singleSide: { type: 'boolean', default: false }
   },
   allowPositionals: true
 });
@@ -67,8 +80,15 @@ Options:
   --left <file>          Filename of left-limit lap CSV (required)
   --right <file>         Filename of right-limit lap CSV (required)
   --center <file>        Filename of center/racing-line lap CSV (optional)
-  --samples <n>          Number of grid samples (default: 1024)
+  --samples <n>          Number of grid samples (overrides spacing)
   --smooth <n>           Smoothing window size (default: 30)
+  --pointTarget <n>      Target spline control points (~40)
+  --tension <float>      Bézier tension (default: 0.5)
+  --trackWidth <m>       Default track width when only one lap provided (default: 12)
+  --spacing <m>          Target sample spacing in meters (default: 0.5)
+  --preview              Write preview JSON blob alongside output
+  --spline-dump          Write inside spline CSV alongside output
+  --singleSide           Allow generation with only a single calibration lap
   --list                 List available CSV files in input directory
   -h, --help             Show this help message
 
@@ -123,7 +143,14 @@ if (values.list) {
 }
 
 // Validate required arguments
-if (!values.input || !values.output || !values.left || !values.right) {
+const hasLeftArg = Boolean(values.left);
+const hasRightArg = Boolean(values.right);
+if (
+  !values.input ||
+  !values.output ||
+  (!values.singleSide && (!hasLeftArg || !hasRightArg)) ||
+  (values.singleSide && !(hasLeftArg || hasRightArg))
+) {
   console.error('Error: Missing required arguments');
   console.error('Run with --help for usage information');
   process.exit(1);
@@ -131,11 +158,17 @@ if (!values.input || !values.output || !values.left || !values.right) {
 
 const inputDir = resolve(values.input);
 const outputPath = resolve(values.output);
-const gridSamples = parseInt(values.samples, 10);
+const requestedSamples = values.samples ? parseInt(values.samples, 10) : null;
 const smoothWindow = parseInt(values.smooth, 10);
+const spacingMeters = values.spacing ? Number(values.spacing) : 0.5;
 
-if (isNaN(gridSamples) || gridSamples < 100) {
+if (requestedSamples !== null && (isNaN(requestedSamples) || requestedSamples < 100)) {
   console.error('Error: --samples must be a number >= 100');
+  process.exit(1);
+}
+
+if (!Number.isFinite(spacingMeters) || spacingMeters <= 0) {
+  console.error('Error: --spacing must be a positive number');
   process.exit(1);
 }
 
@@ -147,7 +180,10 @@ if (isNaN(smoothWindow) || smoothWindow < 1) {
 console.log('\n=== Track Map Generator ===\n');
 console.log(`Input: ${inputDir}`);
 console.log(`Output: ${outputPath}`);
-console.log(`Grid samples: ${gridSamples}`);
+if (requestedSamples) {
+  console.log(`Grid samples (requested): ${requestedSamples}`);
+}
+console.log(`Spacing target: ${spacingMeters} m`);
 console.log(`Smoothing window: ${smoothWindow}`);
 console.log();
 
@@ -160,17 +196,32 @@ try {
     right: values.right
   };
 
-  const { laps, trackId, trackName } = await loadCalibrationLaps(inputDir, lapMap);
+  const { laps, trackId, trackName } = await loadCalibrationLaps(inputDir, lapMap, {
+    requireBothSides: !values.singleSide
+  });
   console.log(`  ✓ Loaded ${laps.length} laps for track: ${trackName}`);
 
   // Step 2: Resample onto common grid
   console.log('[2/9] Resampling laps onto common progress grid...');
-  const grids = resampleCalibrationLaps(laps, gridSamples);
-  console.log(`  ✓ Resampled to ${gridSamples} uniform points`);
+  const { grids, rawSamples, metadata: resampleMeta } = resampleCalibrationLaps(laps, {
+    sampleCount: requestedSamples || undefined,
+    spacingMeters
+  });
+  const resolvedSamples = resampleMeta.sampleCount;
+  console.log(
+    `  ✓ Resampled to ${resolvedSamples} uniform points (~${resampleMeta.spacingMeters.toFixed(3)} m spacing)`
+  );
 
-  // Step 3: Extract centerline
-  console.log('[3/9] Extracting centerline...');
-  const centerlineRaw = extractCenterline(grids);
+  // Step 3: Extract centerline via splines
+  console.log('[3/9] Extracting spline-based centerline...');
+  const splineSamples = buildCenterSplineSamples(grids, resolvedSamples, {
+    pointTarget: values.pointTarget ? Number(values.pointTarget) : undefined,
+    tension: values.tension ? Number(values.tension) : undefined,
+    allowSingleSide: values.singleSide,
+    defaultTrackWidth: values.trackWidth ? Number(values.trackWidth) : 12,
+    spacingMeters: resampleMeta.spacingMeters
+  });
+  const centerlineRaw = splineSamples.centerline;
   console.log(`  ✓ Centerline extracted (${centerlineRaw.length} points)`);
 
   // Step 4: Validate centerline
@@ -192,15 +243,25 @@ try {
   // Step 6: Compute geometry
   console.log('[6/9] Computing tangents and normals...');
   const { normals } = computeGeometry(centerline);
+  const signedAngles = computeSignedAngles(centerline);
   console.log(`  ✓ Computed ${normals.length} normal vectors`);
 
   // Step 7: Calculate widths
   console.log('[7/9] Calculating track widths...');
-  const { halfWidthLeft: rawLeft, halfWidthRight: rawRight } = calculateWidths(
-    centerline,
-    normals,
-    grids
+  const rawWidths = calculateWidths(centerline, normals, {
+    left: splineSamples.leftSamples,
+    right: splineSamples.rightSamples
+  });
+  const targetWidth = computeTargetWidth(rawWidths.halfWidthLeft, rawWidths.halfWidthRight);
+  const constantEnvelope = buildConstantWidthEnvelope(
+    rawWidths.halfWidthLeft,
+    rawWidths.halfWidthRight,
+    signedAngles,
+    targetWidth
   );
+  const rawLeft = constantEnvelope.halfWidthLeft;
+  const rawRight = constantEnvelope.halfWidthRight;
+  console.log(`  Target width ≈ ${targetWidth.toFixed(2)}m`);
 
   // Detect outliers
   const outlierReport = detectWidthOutliers(rawLeft, rawRight);
@@ -221,9 +282,36 @@ try {
     rawRight
   );
 
-  // Smooth widths
-  const { halfWidthLeft, halfWidthRight } = smoothWidths(clampedLeft, clampedRight, smoothWindow);
-  console.log(`  ✓ Widths calculated and smoothed`);
+  const savitzkyWidths = savitzkyGolayWidthSmooth(clampedLeft, clampedRight, {
+    windowSize: 9,
+    order: 3,
+    spacing: resampleMeta.spacingMeters
+  });
+
+  const slopeLimited = clampWidthDeltas(
+    savitzkyWidths.halfWidthLeft,
+    savitzkyWidths.halfWidthRight,
+    {
+      spacingMeters: resampleMeta.spacingMeters,
+      maxDeltaPer10m: 0.25
+    }
+  );
+  console.log('  ✓ Widths smoothed with Savitzky–Golay + slope clamp');
+
+  console.log('  ✓ Enforcing guardrails against calibration laps');
+  const { halfWidthLeft, halfWidthRight, stats: guardrailStats } = enforceWidthConstraints({
+    centerline,
+    normals,
+    rawSamples,
+    halfWidthLeft: slopeLimited.halfWidthLeft,
+    halfWidthRight: slopeLimited.halfWidthRight,
+    clampScale: 1
+  });
+  if ((guardrailStats?.leftClamped || 0) + (guardrailStats?.rightClamped || 0) > 0) {
+    console.log(
+      `    Guardrails: adjusted ${guardrailStats.leftClamped} left / ${guardrailStats.rightClamped} right samples`
+    );
+  }
 
   // Step 8: Generate edges
   console.log('[8/9] Generating edge polylines...');
@@ -245,7 +333,7 @@ try {
     sim: 'lmu',
     trackId,
     trackName,
-    sampleCount: gridSamples,
+    sampleCount: resolvedSamples,
     centerline,
     halfWidthLeft,
     halfWidthRight,
@@ -256,6 +344,19 @@ try {
       left: values.left || null,
       center: values.center || null,
       right: values.right || null
+    },
+    metadata: {
+      leftControlCount: splineSamples.metadata.leftControlCount,
+      rightControlCount: splineSamples.metadata.rightControlCount,
+      centerControlCount: splineSamples.metadata.centerControlCount,
+      targetWidth: constantEnvelope.stats.targetWidth,
+      insideLeftCount: constantEnvelope.stats.insideLeftCount,
+      insideRightCount: constantEnvelope.stats.insideRightCount,
+      guardrailClamps: guardrailStats,
+      insideFlipCount: splineSamples.metadata.insideFlipCount,
+      apexAnchorCount: splineSamples.metadata.apexCount,
+      spacingMeters: resampleMeta.spacingMeters,
+      widthClampDiagnostics: slopeLimited.diagnostics
     }
   });
 
@@ -264,6 +365,36 @@ try {
 
   await exportTrackMap(trackMapData, outputPath);
   console.log(`  ✓ Exported to ${outputPath}`);
+
+  if (values.preview) {
+    const previewPath = `${outputPath}.preview.json`;
+    await writeFile(
+      previewPath,
+      JSON.stringify(
+        {
+          trackId,
+          trackName,
+          centerline,
+          insideSpline: splineSamples.insideSamples,
+          metadata: trackMapData.metadata
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
+    console.log(`  ✓ Preview blob written to ${previewPath}`);
+  }
+
+  if (values['spline-dump']) {
+    const splinePath = `${outputPath}.inside.csv`;
+    const csvLines = ['index,x,y'];
+    splineSamples.insideSamples.forEach((point, idx) => {
+      csvLines.push(`${idx},${point.x.toFixed(4)},${point.y.toFixed(4)}`);
+    });
+    await writeFile(splinePath, csvLines.join('\n'), 'utf-8');
+    console.log(`  ✓ Inside spline dumped to ${splinePath}`);
+  }
 
   // Print summary
   console.log('\n' + generateSummary(trackMapData));

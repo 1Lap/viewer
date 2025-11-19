@@ -17,9 +17,12 @@ import { parseLapFile } from '../parser.js';
  * @param {string} [lapMap.left] - Filename for left-limit lap
  * @param {string} [lapMap.center] - Filename for center/racing-line lap
  * @param {string} [lapMap.right] - Filename for right-limit lap
+ * @param {Object} [options]
+ * @param {boolean} [options.requireBothSides=true] - Enforce presence of left+right laps
  * @returns {Promise<{laps: ClassifiedLap[], trackId: string, trackName: string}>}
  */
-export async function loadCalibrationLaps(dirPath, lapMap) {
+export async function loadCalibrationLaps(dirPath, lapMap, options = {}) {
+  const { requireBothSides = true } = options;
   const laps = [];
   let trackId = null;
   let trackName = null;
@@ -67,15 +70,17 @@ export async function loadCalibrationLaps(dirPath, lapMap) {
     );
   }
 
-  // Validate we have at least left and right laps
-  const hasLeft = laps.some((l) => l.type === 'left');
-  const hasRight = laps.some((l) => l.type === 'right');
+  if (requireBothSides) {
+    // Validate we have at least left and right laps
+    const hasLeft = laps.some((l) => l.type === 'left');
+    const hasRight = laps.some((l) => l.type === 'right');
 
-  if (!hasLeft || !hasRight) {
-    throw new Error(
-      'Both left-limit and right-limit laps are required for track map generation. Missing: ' +
-        [!hasLeft && 'left', !hasRight && 'right'].filter(Boolean).join(', ')
-    );
+    if (!hasLeft || !hasRight) {
+      throw new Error(
+        'Both left-limit and right-limit laps are required for track map generation. Missing: ' +
+          [!hasLeft && 'left', !hasRight && 'right'].filter(Boolean).join(', ')
+      );
+    }
   }
 
   return {

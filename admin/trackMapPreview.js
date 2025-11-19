@@ -1,15 +1,19 @@
 import { parseLapFile } from '../js/parser.js';
 import { resampleCalibrationLaps } from '../js/trackMapGenerator/resampler.js';
-import { extractCenterline, validateCenterline } from '../js/trackMapGenerator/centerline.js';
-import { computeGeometry } from '../js/trackMapGenerator/geometry.js';
+import { validateCenterline } from '../js/trackMapGenerator/centerline.js';
+import { computeGeometry, computeSignedAngles } from '../js/trackMapGenerator/geometry.js';
 import {
   calculateWidths,
   detectWidthOutliers,
-  clampWidths
+  clampWidths,
+  computeTargetWidth,
+  buildConstantWidthEnvelope
 } from '../js/trackMapGenerator/width.js';
 import { smoothCenterline, smoothWidths } from '../js/trackMapGenerator/smoothing.js';
 import { generateEdges, validateEdges } from '../js/trackMapGenerator/edges.js';
 import { createTrackMapData, generateSummary } from '../js/trackMapGenerator/exporter.js';
+import { enforceWidthConstraints } from '../js/trackMapGenerator/constraints.js';
+import { buildCenterSplineSamples } from '../js/trackMapGenerator/spline.js';
 
 const PREVIEW_STORAGE_KEY = 'trackMapPreview';
 
@@ -19,6 +23,8 @@ const elements = {
   trackInfo: document.getElementById('trackInfo'),
   samplesInput: document.getElementById('samplesInput'),
   smoothInput: document.getElementById('smoothInput'),
+  clampInput: document.getElementById('clampInput'),
+  guardrailToggle: document.getElementById('guardrailToggle'),
   generateBtn: document.getElementById('generateBtn'),
   statusMessage: document.getElementById('statusMessage'),
   summaryOutput: document.getElementById('summaryOutput'),
@@ -30,7 +36,8 @@ const elements = {
 
 const state = {
   files: [],
-  trackMapData: null
+  trackMapData: null,
+  guardrailStats: null
 };
 
 elements.fileInput.addEventListener('change', handleFileSelection);
@@ -91,6 +98,7 @@ async function handleFileSelection(event) {
 
   state.files = parsed;
   state.trackMapData = null;
+  state.guardrailStats = null;
   updateActionButtons();
   renderFileList();
   renderTrackInfo();
@@ -144,8 +152,8 @@ function renderFileList() {
           <select data-id="${file.id}">
             <option value="">Unassigned</option>
             <option value="left"${file.type === 'left' ? ' selected' : ''}>Left limit</option>
-            <option value="center"${file.type === 'center' ? ' selected' : ''}>Center</option>
             <option value="right"${file.type === 'right' ? ' selected' : ''}>Right limit</option>
+            <option value="center"${file.type === 'center' ? ' selected' : ''}>Center</option>
           </select>
         </td>
         <td>${lengthLabel}</td>
@@ -204,26 +212,61 @@ async function handleGenerate() {
     const { trackName, trackId, laps } = ensureAssignments();
     const sampleCount = clampNumber(parseInt(elements.samplesInput.value, 10), 256, 4096, 1024);
     const smoothWindow = clampNumber(parseInt(elements.smoothInput.value, 10), 5, 200, 30);
+    const clampPercent = clampNumber(parseFloat(elements.clampInput.value), 10, 120, 100);
+    const guardrailsEnabled = Boolean(elements.guardrailToggle?.checked);
 
     setStatus('Processing calibration laps...');
 
-    const grids = resampleCalibrationLaps(laps, sampleCount);
-    const centerlineRaw = extractCenterline(grids);
+    const { grids, rawSamples } = resampleCalibrationLaps(laps, { sampleCount });
+    const splineSamples = buildCenterSplineSamples(grids, sampleCount);
+    const centerlineRaw = splineSamples.centerline;
     const centerlineValidation = validateCenterline(centerlineRaw);
     const centerline = smoothCenterline(centerlineRaw, smoothWindow);
     const { normals } = computeGeometry(centerline);
-    const widthResult = calculateWidths(centerline, normals, grids);
-    const outlierReport = detectWidthOutliers(
+    const signedAngles = computeSignedAngles(centerline);
+    const widthResult = calculateWidths(centerline, normals, {
+      left: splineSamples.leftSamples,
+      right: splineSamples.rightSamples
+    });
+    const targetWidth = computeTargetWidth(widthResult.halfWidthLeft, widthResult.halfWidthRight);
+    const constantEnvelope = buildConstantWidthEnvelope(
       widthResult.halfWidthLeft,
-      widthResult.halfWidthRight
+      widthResult.halfWidthRight,
+      signedAngles,
+      targetWidth
     );
-    const clamped = clampWidths(widthResult.halfWidthLeft, widthResult.halfWidthRight);
+    const outlierReport = detectWidthOutliers(
+      constantEnvelope.halfWidthLeft,
+      constantEnvelope.halfWidthRight
+    );
+    const clamped = clampWidths(constantEnvelope.halfWidthLeft, constantEnvelope.halfWidthRight);
     const smoothed = smoothWidths(clamped.halfWidthLeft, clamped.halfWidthRight, smoothWindow);
+    const extraWindow = Math.max(5, Math.round(smoothWindow / 2));
+    const extraSmoothed = smoothWidths(
+      smoothed.halfWidthLeft,
+      smoothed.halfWidthRight,
+      extraWindow
+    );
+    let constrained = {
+      halfWidthLeft: smoothed.halfWidthLeft,
+      halfWidthRight: smoothed.halfWidthRight,
+      stats: null
+    };
+    if (guardrailsEnabled) {
+      constrained = enforceWidthConstraints({
+        centerline,
+        normals,
+        rawSamples,
+        halfWidthLeft: extraSmoothed.halfWidthLeft,
+        halfWidthRight: extraSmoothed.halfWidthRight,
+        clampScale: clampPercent / 100
+      });
+    }
     const { leftEdge, rightEdge } = generateEdges(
       centerline,
       normals,
-      smoothed.halfWidthLeft,
-      smoothed.halfWidthRight
+      constrained.halfWidthLeft,
+      constrained.halfWidthRight
     );
     const edgeValidation = validateEdges(leftEdge, rightEdge);
 
@@ -239,28 +282,56 @@ async function handleGenerate() {
       trackName,
       sampleCount,
       centerline,
-      halfWidthLeft: smoothed.halfWidthLeft,
-      halfWidthRight: smoothed.halfWidthRight,
+      halfWidthLeft: constrained.halfWidthLeft,
+      halfWidthRight: constrained.halfWidthRight,
       leftEdge,
       rightEdge,
       smoothingWindow: smoothWindow,
       calibrationLaps
     });
 
-    state.trackMapData = trackMapData;
+    const enrichedTrackMap = {
+      ...trackMapData,
+      metadata: {
+        ...(trackMapData.metadata || {}),
+        leftControlCount: splineSamples.metadata.leftControlCount,
+        rightControlCount: splineSamples.metadata.rightControlCount,
+        centerControlCount: splineSamples.metadata.centerControlCount,
+        algorithm: 'center-spline + constant-width',
+        targetWidth,
+        insideLeftCount: constantEnvelope.stats.insideLeftCount,
+        insideRightCount: constantEnvelope.stats.insideRightCount,
+        guardrailClamps: constrained.stats
+      }
+    };
+    state.trackMapData = enrichedTrackMap;
+    state.guardrailStats = constrained.stats;
     updateActionButtons();
     renderCanvas(trackMapData, laps);
-    renderSummary(trackMapData, centerlineValidation, outlierReport, edgeValidation);
+    renderSummary(
+      enrichedTrackMap,
+      centerlineValidation,
+      outlierReport,
+      edgeValidation,
+      constrained.stats
+    );
     setStatus(`Generated track map for ${trackName}.`);
   } catch (error) {
     setStatus(error.message, true);
     state.trackMapData = null;
+    state.guardrailStats = null;
     updateActionButtons();
     renderCanvas(null, []);
   }
 }
 
-function renderSummary(trackMapData, centerlineValidation, outlierReport, edgeValidation) {
+function renderSummary(
+  trackMapData,
+  centerlineValidation,
+  outlierReport,
+  edgeValidation,
+  guardrailStats
+) {
   if (!trackMapData) {
     elements.summaryOutput.textContent = 'No preview generated yet.';
     return;
@@ -288,6 +359,12 @@ function renderSummary(trackMapData, centerlineValidation, outlierReport, edgeVa
   if (!edgeValidation.valid && edgeValidation.warnings.length) {
     summaryChunks.push(
       'Edge warnings:\n' + edgeValidation.warnings.map((warn) => `  - ${warn}`).join('\n')
+    );
+  }
+
+  if (guardrailStats && (guardrailStats.leftClamped || guardrailStats.rightClamped)) {
+    summaryChunks.push(
+      `Guardrails: clamp ${guardrailStats.clampScale * 100}% span → adjusted ${guardrailStats.leftClamped} left / ${guardrailStats.rightClamped} right samples`
     );
   }
 
@@ -337,6 +414,32 @@ function renderCanvas(trackMapData, laps) {
   drawPolyline(ctx, trackMapData.rightEdge, toCanvas, '#64748b', 2, 0.45);
   drawPolyline(ctx, trackMapData.centerline, toCanvas, '#cbd5f5', 1.5, 0.25, [6, 6]);
 
+  const markerStats = state.guardrailStats;
+  if (markerStats) {
+    const leftMarkers = markerStats.leftIndices || [];
+    const rightMarkers = markerStats.rightIndices || [];
+    if (leftMarkers.length) {
+      ctx.fillStyle = '#f97316';
+      leftMarkers.forEach((idx) => {
+        if (!trackMapData.leftEdge[idx]) return;
+        const [mx, my] = toCanvas(trackMapData.leftEdge[idx]);
+        ctx.beginPath();
+        ctx.arc(mx, my, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    if (rightMarkers.length) {
+      ctx.fillStyle = '#facc15';
+      rightMarkers.forEach((idx) => {
+        if (!trackMapData.rightEdge[idx]) return;
+        const [mx, my] = toCanvas(trackMapData.rightEdge[idx]);
+        ctx.beginPath();
+        ctx.arc(mx, my, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+
   // Draw raw laps
   const colors = {
     left: '#f43f5e',
@@ -358,6 +461,9 @@ function renderCanvas(trackMapData, laps) {
     { label: 'Right (raw)', color: colors.right },
     { label: 'Generated edges', color: '#94a3b8' }
   ];
+  if (markerStats && (markerStats.leftClamped || markerStats.rightClamped)) {
+    legendEntries.push({ label: 'Guardrail clamp', color: '#f97316' });
+  }
   legendEntries.forEach((entry, idx) => {
     ctx.fillStyle = entry.color;
     ctx.fillRect(20, 20 + idx * 18, 14, 4);

@@ -64,6 +64,11 @@ export async function renderTrackMap(lap) {
     return;
   }
 
+  let trackMapData = null;
+  if (lap.metadata?.track) {
+    trackMapData = await loadTrackMapByName(lap.metadata.track);
+  }
+
   const windowStart = uiState.viewWindow?.start ?? lap.samples[0].distance;
   const windowEnd = uiState.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
   const totalSpan = lap.samples[lap.samples.length - 1].distance - lap.samples[0].distance || 1;
@@ -86,6 +91,25 @@ export async function renderTrackMap(lap) {
     if (planeY > maxY) maxY = planeY;
   });
 
+  function extendBoundsWithPolyline(polyline) {
+    if (!Array.isArray(polyline)) return;
+    polyline.forEach((point) => {
+      if (!Array.isArray(point) || point.length < 2) return;
+      const [x, y] = point;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    });
+  }
+
+  if (!shouldZoom && trackMapData) {
+    extendBoundsWithPolyline(trackMapData.left);
+    extendBoundsWithPolyline(trackMapData.right);
+    extendBoundsWithPolyline(trackMapData.center);
+  }
+
   const expand = shouldZoom ? 0.15 : 0.05;
   const expandX = (maxX - minX) * expand || 1;
   const expandY = (maxY - minY) * expand || 1;
@@ -101,21 +125,31 @@ export async function renderTrackMap(lap) {
   const width = cssWidth - paddingX * 2;
   const height = cssHeight - paddingY * 2;
 
-  function toCanvasCoords(sample) {
-    const planeY = getPlanarY(sample);
-    const normX = (sample.x - minX) / rangeX;
-    const normY = (planeY - minY) / rangeY;
+  function projectToCanvas(xValue, yValue) {
+    if (!Number.isFinite(xValue) || !Number.isFinite(yValue)) {
+      return { x: paddingX, y: cssHeight - paddingY };
+    }
+    const normX = (xValue - minX) / rangeX;
+    const normY = (yValue - minY) / rangeY;
     const x = paddingX + (1 - normX) * width;
     const y = cssHeight - paddingY - normY * height;
     return { x, y };
   }
 
+  function toCanvasSample(sample) {
+    const planeY = getPlanarY(sample);
+    return projectToCanvas(sample.x, planeY);
+  }
+
+  function toCanvasTrackPoint(point) {
+    if (!Array.isArray(point) || point.length < 2) return null;
+    const [x, y] = point;
+    return projectToCanvas(x, y);
+  }
+
   // Load and render track map (if available)
-  if (lap.metadata?.track) {
-    const trackMap = await loadTrackMapByName(lap.metadata.track);
-    if (trackMap) {
-      renderTrackLimits(ctx, trackMap, toCanvasCoords);
-    }
+  if (trackMapData) {
+    renderTrackLimits(ctx, trackMapData, toCanvasTrackPoint);
   }
 
   telemetryState.laps.forEach((lapItem) => {
@@ -128,7 +162,7 @@ export async function renderTrackMap(lap) {
     ctx.globalAlpha = lapItem.id === lap.id ? 0.8 : 0.35;
     ctx.beginPath();
     lapPoints.forEach((sample, idx) => {
-      const { x, y } = toCanvasCoords(sample);
+      const { x, y } = toCanvasSample(sample);
       if (idx === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
@@ -147,7 +181,7 @@ export async function renderTrackMap(lap) {
         drawing = false;
         return;
       }
-      const { x, y } = toCanvasCoords(sample);
+      const { x, y } = toCanvasSample(sample);
       if (!drawing) {
         ctx.moveTo(x, y);
         drawing = true;
@@ -164,7 +198,7 @@ export async function renderTrackMap(lap) {
     .map((sample) => {
       const planeY = getPlanarY(sample);
       if (sample.x == null || planeY == null) return null;
-      const { x, y } = toCanvasCoords(sample);
+      const { x, y } = toCanvasSample(sample);
       return { distance: sample.distance, x, y };
     })
     .filter(Boolean);
@@ -175,7 +209,7 @@ export async function renderTrackMap(lap) {
       const sample = findSampleAtDistance(lapItem.samples, uiState.cursorDistance);
       const planeY = sample ? getPlanarY(sample) : null;
       if (sample && sample.x != null && planeY != null) {
-        const { x, y } = toCanvasCoords(sample);
+        const { x, y } = toCanvasSample(sample);
         ctx.fillStyle = getLapColor(lapItem.id);
         ctx.beginPath();
         ctx.arc(x, y, lapItem.id === lap.id ? 6 : 4, 0, Math.PI * 2);
@@ -195,63 +229,43 @@ export async function renderTrackMap(lap) {
  * @param {Object} trackMap - Track map data
  * @param {Function} transform - Transform function (world coords → canvas coords)
  */
-function renderTrackLimits(ctx, trackMap, transform) {
-  const { leftEdge, rightEdge, centerline } = trackMap;
+function renderTrackLimits(ctx, trackMap, transformPoint) {
+  const left = Array.isArray(trackMap.left) ? trackMap.left : [];
+  const right = Array.isArray(trackMap.right) ? trackMap.right : [];
+  const center = Array.isArray(trackMap.center) ? trackMap.center : [];
+  const hasEdges = left.length > 1 || right.length > 1;
+  const hasCenter = center.length > 1;
 
-  if (!leftEdge || !rightEdge) return;
+  if (!hasEdges && !hasCenter) return;
 
   ctx.save();
 
-  // Draw left edge
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = 1.5;
-  ctx.globalAlpha = 0.4;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-
-  for (let i = 0; i < leftEdge.length; i++) {
-    const [x, z] = leftEdge[i];
-    const screen = transform({ x, z });
-    if (i === 0) {
-      ctx.moveTo(screen.x, screen.y);
-    } else {
-      ctx.lineTo(screen.x, screen.y);
-    }
-  }
-  ctx.stroke();
-
-  // Draw right edge
-  ctx.beginPath();
-  for (let i = 0; i < rightEdge.length; i++) {
-    const [x, z] = rightEdge[i];
-    const screen = transform({ x, z });
-    if (i === 0) {
-      ctx.moveTo(screen.x, screen.y);
-    } else {
-      ctx.lineTo(screen.x, screen.y);
-    }
-  }
-  ctx.stroke();
-
-  // Optionally draw centerline (dashed, subtle)
-  if (centerline && centerline.length > 0) {
-    ctx.strokeStyle = '#9ca3af';
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.2;
-    ctx.setLineDash([5, 5]);
+  const drawPolyline = (points, strokeStyle, width, alpha, dash = []) => {
+    if (!points || points.length < 2) return;
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.setLineDash(dash);
     ctx.beginPath();
-
-    for (let i = 0; i < centerline.length; i++) {
-      const [x, z] = centerline[i];
-      const screen = transform({ x, z });
-      if (i === 0) {
+    let hasMove = false;
+    points.forEach((point) => {
+      const screen = transformPoint(point);
+      if (!screen) return;
+      if (!hasMove) {
         ctx.moveTo(screen.x, screen.y);
+        hasMove = true;
       } else {
         ctx.lineTo(screen.x, screen.y);
       }
+    });
+    if (hasMove) {
+      ctx.stroke();
     }
-    ctx.stroke();
-  }
+  };
+
+  drawPolyline(left, '#6b7280', 1.5, 0.4);
+  drawPolyline(right, '#6b7280', 1.5, 0.4);
+  drawPolyline(center, '#9ca3af', 1, 0.2, [5, 5]);
 
   ctx.restore();
 }

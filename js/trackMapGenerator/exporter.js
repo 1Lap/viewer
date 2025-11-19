@@ -81,7 +81,8 @@ export function createTrackMapData({
   leftEdge,
   rightEdge,
   smoothingWindow,
-  calibrationLaps
+  calibrationLaps,
+  metadata = {}
 }) {
   // Calculate viewBox
   const viewBox = calculateViewBox(leftEdge, rightEdge);
@@ -112,7 +113,8 @@ export function createTrackMapData({
     rightEdge: roundedRightEdge,
     viewBox: roundedViewBox,
     smoothingWindow,
-    calibrationLaps
+    calibrationLaps,
+    metadata
   };
 }
 
@@ -146,7 +148,8 @@ export function generateSummary(trackMapData) {
     halfWidthLeft,
     halfWidthRight,
     smoothingWindow,
-    calibrationLaps
+    calibrationLaps,
+    metadata = {}
   } = trackMapData;
 
   const avgLeft = halfWidthLeft.reduce((sum, w) => sum + w, 0) / halfWidthLeft.length;
@@ -175,6 +178,33 @@ Calibration Laps:
   Left: ${calibrationLaps.left || 'none'}
   Center: ${calibrationLaps.center || 'none'}
   Right: ${calibrationLaps.right || 'none'}
+
+Diagnostics:
+  Algorithm: ${metadata.algorithm || 'n/a'}
+  Left control points: ${metadata.leftControlCount || 'n/a'}
+  Center control points: ${metadata.centerControlCount || 'n/a'}
+  Right control points: ${metadata.rightControlCount || 'n/a'}
+  Target width: ${metadata.targetWidth ? `${metadata.targetWidth.toFixed(2)}m` : 'n/a'}
+  Inside bias: ${
+    metadata.insideLeftCount != null && metadata.insideRightCount != null
+      ? `${metadata.insideLeftCount} left / ${metadata.insideRightCount} right`
+      : 'n/a'
+  }
+  Guardrail clamps: ${
+    metadata.guardrailClamps
+      ? `${metadata.guardrailClamps.leftClamped} left / ${metadata.guardrailClamps.rightClamped} right`
+      : 'n/a'
+  }
+  Inside flips: ${
+    metadata.insideFlipCount != null ? metadata.insideFlipCount : 'n/a'
+  }
+  Apex anchors: ${metadata.apexAnchorCount != null ? metadata.apexAnchorCount : 'n/a'}
+  Sample spacing: ${metadata.spacingMeters ? `${metadata.spacingMeters.toFixed(3)} m` : 'n/a'}
+  Width slope clamps: ${
+    metadata.widthClampDiagnostics
+      ? `${metadata.widthClampDiagnostics.leftClamped} left / ${metadata.widthClampDiagnostics.rightClamped} right`
+      : 'n/a'
+  }
 
 Generated: ${trackMapData.generatedAt}
 `.trim();

@@ -1,3 +1,5 @@
+import { savitzkyGolaySmooth } from './smoothing.js';
+
 /**
  * Track width calculation from calibration laps.
  *
@@ -85,6 +87,86 @@ export function calculateWidths(centerline, normals, grids) {
   }
 
   return { halfWidthLeft, halfWidthRight };
+}
+
+export function symmetriseWidths(halfWidthLeft, halfWidthRight) {
+  const n = halfWidthLeft.length;
+  const symmetricLeft = new Float64Array(n);
+  const symmetricRight = new Float64Array(n);
+
+  for (let i = 0; i < n; i++) {
+    const left = Math.max(0, halfWidthLeft[i]);
+    const right = Math.max(0, halfWidthRight[i]);
+    const symmetric = Math.min(left, right);
+    symmetricLeft[i] = symmetric;
+    symmetricRight[i] = symmetric;
+  }
+
+  return { halfWidthLeft: symmetricLeft, halfWidthRight: symmetricRight };
+}
+
+export function computeTargetWidth(halfWidthLeft, halfWidthRight) {
+  const totals = [];
+  for (let i = 0; i < halfWidthLeft.length; i++) {
+    const total = halfWidthLeft[i] + halfWidthRight[i];
+    if (Number.isFinite(total) && total > 0) totals.push(total);
+  }
+  if (!totals.length) return 0;
+  totals.sort((a, b) => a - b);
+  const mid = Math.floor(totals.length / 2);
+  if (totals.length % 2 === 1) return totals[mid];
+  return (totals[mid - 1] + totals[mid]) / 2;
+}
+
+export function buildConstantWidthEnvelope(
+  halfWidthLeft,
+  halfWidthRight,
+  signedAngles,
+  targetWidth
+) {
+  const n = halfWidthLeft.length;
+  const resultLeft = new Float64Array(n);
+  const resultRight = new Float64Array(n);
+  let insideLeftCount = 0;
+  let insideRightCount = 0;
+  let lastInsideLeft = true;
+  const minWidth = targetWidth > 0 ? targetWidth : 6;
+
+  for (let i = 0; i < n; i++) {
+    const angle = signedAngles ? signedAngles[i] : 0;
+    let insideLeft;
+    if (Math.abs(angle) < 1e-3) insideLeft = lastInsideLeft;
+    else insideLeft = angle >= 0;
+    lastInsideLeft = insideLeft;
+
+    const insideHalf = Math.max(0, insideLeft ? halfWidthLeft[i] : halfWidthRight[i]);
+    const desiredTotal = Math.max(minWidth, targetWidth * 0.95 || insideHalf * 2);
+    let outsideHalf = desiredTotal - insideHalf;
+    if (outsideHalf < insideHalf * 0.4) {
+      outsideHalf = insideHalf * 0.4;
+    }
+    if (outsideHalf < 0.75) outsideHalf = 0.75;
+
+    if (insideLeft) {
+      resultLeft[i] = insideHalf;
+      resultRight[i] = outsideHalf;
+      insideLeftCount++;
+    } else {
+      resultRight[i] = insideHalf;
+      resultLeft[i] = outsideHalf;
+      insideRightCount++;
+    }
+  }
+
+  return {
+    halfWidthLeft: resultLeft,
+    halfWidthRight: resultRight,
+    stats: {
+      targetWidth: minWidth,
+      insideLeftCount,
+      insideRightCount
+    }
+  };
 }
 
 /**
@@ -199,6 +281,94 @@ export function detectWidthOutliers(
       maxRight: maxRight.toFixed(2)
     }
   };
+}
+
+export function savitzkyGolayWidthSmooth(
+  halfWidthLeft,
+  halfWidthRight,
+  { windowSize = 9, order = 3, spacing = 1 } = {}
+) {
+  return {
+    halfWidthLeft: savitzkyGolaySmooth(halfWidthLeft, windowSize, { order, spacing }),
+    halfWidthRight: savitzkyGolaySmooth(halfWidthRight, windowSize, { order, spacing })
+  };
+}
+
+export function clampWidthDeltas(
+  halfWidthLeft,
+  halfWidthRight,
+  { spacingMeters = 1, maxDeltaPer10m = 0.25, sectorLength = 100 } = {}
+) {
+  const limitPerMeter = maxDeltaPer10m / 10;
+  const perSampleLimit = limitPerMeter * Math.max(spacingMeters, 1e-3);
+  const leftClamp = applySlopeClamp(halfWidthLeft, perSampleLimit);
+  const rightClamp = applySlopeClamp(halfWidthRight, perSampleLimit);
+
+  return {
+    halfWidthLeft: leftClamp.values,
+    halfWidthRight: rightClamp.values,
+    diagnostics: {
+      perSampleLimit,
+      maxDeltaPer10m,
+      leftClamped: leftClamp.clampedCount,
+      rightClamped: rightClamp.clampedCount,
+      leftSectors: summariseClampBySector(leftClamp.flags, spacingMeters, sectorLength),
+      rightSectors: summariseClampBySector(rightClamp.flags, spacingMeters, sectorLength)
+    }
+  };
+}
+
+function applySlopeClamp(values, perSampleLimit) {
+  const n = values.length;
+  const result = new Float64Array(values);
+  const flags = new Array(n).fill(false);
+  let changed = true;
+  let iterations = 0;
+  while (changed && iterations < n * 2) {
+    changed = false;
+    iterations += 1;
+    for (let i = 0; i < n; i++) {
+      const prevIndex = (i - 1 + n) % n;
+      const prevValue = result[prevIndex];
+      let current = result[i];
+      const delta = current - prevValue;
+      if (delta > perSampleLimit) {
+        current = prevValue + perSampleLimit;
+        result[i] = current;
+        flags[i] = true;
+        changed = true;
+      } else if (delta < -perSampleLimit) {
+        current = prevValue - perSampleLimit;
+        result[i] = current;
+        flags[i] = true;
+        changed = true;
+      }
+    }
+  }
+  const clampedCount = flags.filter(Boolean).length;
+  return { values: result, flags, clampedCount };
+}
+
+function summariseClampBySector(flags, spacingMeters, sectorLength) {
+  if (!flags.length) return [];
+  const samplesPerSector = Math.max(1, Math.round(sectorLength / Math.max(spacingMeters, 1e-3)));
+  const sectorCount = Math.ceil(flags.length / samplesPerSector);
+  const summary = [];
+  for (let sector = 0; sector < sectorCount; sector++) {
+    const start = sector * samplesPerSector;
+    const end = Math.min(flags.length, start + samplesPerSector);
+    let clamped = 0;
+    for (let idx = start; idx < end; idx++) {
+      if (flags[idx]) clamped++;
+    }
+    summary.push({
+      sector,
+      samples: end - start,
+      clamped,
+      ratio: (end - start) > 0 ? clamped / (end - start) : 0
+    });
+  }
+  return summary;
 }
 
 /**

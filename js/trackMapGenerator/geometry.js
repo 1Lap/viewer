@@ -165,3 +165,39 @@ export function computeCurvature(centerline, tangents, { circular = true } = {})
 
   return curvature;
 }
+
+/**
+ * Compute signed turn angles at each centerline point.
+ * Positive values indicate left turns, negative values indicate right turns.
+ *
+ * @param {Array<[number, number]>} centerline
+ * @param {Object} [options]
+ * @param {boolean} [options.circular=true]
+ * @returns {Float64Array}
+ */
+export function computeSignedAngles(centerline, { circular = true } = {}) {
+  const n = centerline.length;
+  const angles = new Float64Array(n);
+  if (n < 3) return angles;
+
+  for (let i = 0; i < n; i++) {
+    const prev = circular
+      ? centerline[(i - 1 + n) % n]
+      : centerline[Math.max(i - 1, 0)];
+    const curr = centerline[i];
+    const next = circular
+      ? centerline[(i + 1) % n]
+      : centerline[Math.min(i + 1, n - 1)];
+
+    const v1x = curr[0] - prev[0];
+    const v1y = curr[1] - prev[1];
+    const v2x = next[0] - curr[0];
+    const v2y = next[1] - curr[1];
+
+    const cross = v1x * v2y - v1y * v2x;
+    const dot = v1x * v2x + v1y * v2y;
+    angles[i] = Math.atan2(cross, dot);
+  }
+
+  return angles;
+}

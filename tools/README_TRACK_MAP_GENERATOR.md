@@ -8,7 +8,7 @@ Track maps provide visual context by overlaying track limit boundaries beneath t
 
 ### Fast QA via browser preview (new)
 
-Before touching the CLI you can open `admin/track-map-preview.html` in your browser, drag the calibration CSVs in, tag them (left/right/centre), and tune the sample count + smoothing. The preview page plots the raw laps vs the generated edges, lets you download the JSON, or seeds the SPA via localStorage (`Open in viewer`) so you can validate the overlay instantly without copying files into `assets/trackmaps/`.
+Before touching the CLI you can open `admin/track-map-preview.html` in your browser, drag the calibration CSVs in, tag them (left/right/centre), and tune the sample count + smoothing. The preview page plots the raw laps vs the generated edges, lets you download the JSON, or seeds the SPA via localStorage (`Open in viewer`) so you can validate the overlay instantly without copying files into `assets/trackmaps/`. New width-clamp + guardrail controls ensure the generated limits never escape the raw laps, even when you only recorded left/right passes.
 
 ## Prerequisites
 
@@ -334,6 +334,17 @@ Planned features for the track map system:
 4. **Manual Tweaking**: Click-and-drag UI to adjust problematic sections
 5. **Multi-lap Averaging**: Support averaging >3 calibration laps for better accuracy
 6. **Auto-classification**: Detect left/right laps from steering input
+
+## Simple admin preview (manual sanity check)
+
+Need to eyeball a calibration lap without running the CLI or the full preview SPA? Open `admin/simple-track-map.html` directly in your browser. It's a deliberately tiny tool:
+
+- Drop a left and/or right CSV and pick a sample count; it resamples the raw X/Y coordinates directly with zero spline/guardrail logic.
+- The canvas draws the left lap in red, the right lap in blue, and (when both exist) a grey midpoint so you can visually check how tight each lap hugged the edges.
+- Diagnostics beneath the canvas report lap length, sample count, min/avg/max width, and flag any segments narrower than 3 m.
+- Buttons let you export the JSON or push it straight into the full preview tool (`track-map-preview.html`) by writing to `localStorage.trackMapPreview` (when opening files via `file://`, the simple tool navigates in-place so the localStorage data is preserved).
+
+Use this page when you're unsure whether a calibration capture is usable—the moment it looks wrong here, you know to redo the lap before blaming the generator.
 
 ## Getting Help
 

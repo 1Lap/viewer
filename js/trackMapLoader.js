@@ -9,6 +9,109 @@ const PREVIEW_STORAGE_KEY = 'trackMapPreview';
 // Cache for loaded track maps
 const trackMapCache = new Map();
 
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function normalizePolyline(points) {
+  if (!Array.isArray(points)) return [];
+  const normalized = [];
+  for (const point of points) {
+    if (!point) continue;
+    if (Array.isArray(point) && point.length >= 2) {
+      const [x, y] = point;
+      if (isFiniteNumber(x) && isFiniteNumber(y)) {
+        normalized.push([x, y]);
+      }
+    } else if (isFiniteNumber(point.x) && isFiniteNumber(point.y)) {
+      normalized.push([point.x, point.y]);
+    }
+  }
+  return normalized;
+}
+
+function computeViewBox(polylines, paddingFactor = 0.05) {
+  const points = [];
+  polylines.forEach((polyline) => {
+    if (!Array.isArray(polyline)) return;
+    for (const point of polyline) {
+      if (!Array.isArray(point) || point.length < 2) continue;
+      const [x, y] = point;
+      if (isFiniteNumber(x) && isFiniteNumber(y)) {
+        points.push([x, y]);
+      }
+    }
+  });
+  if (!points.length) {
+    return [0, 0, 1, 1];
+  }
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of points) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const width = maxX - minX || 1;
+  const height = maxY - minY || 1;
+  const paddingX = width * paddingFactor;
+  const paddingY = height * paddingFactor;
+  return [minX - paddingX / 2, minY - paddingY / 2, width + paddingX, height + paddingY];
+}
+
+function normalizeViewBox(viewBox) {
+  if (
+    Array.isArray(viewBox) &&
+    viewBox.length === 4 &&
+    viewBox.every((value) => isFiniteNumber(value))
+  ) {
+    return viewBox;
+  }
+  return null;
+}
+
+function normalizeTrackMapData(rawMap, trackId) {
+  if (!rawMap || typeof rawMap !== 'object') return null;
+
+  const left = normalizePolyline(rawMap.left ?? rawMap.leftEdge);
+  const right = normalizePolyline(rawMap.right ?? rawMap.rightEdge);
+  const center = normalizePolyline(rawMap.center ?? rawMap.centerline);
+
+  if (!left.length && !right.length && !center.length) {
+    console.error(`Invalid track map structure for ${trackId}: missing coordinates`);
+    return null;
+  }
+
+  const meta = rawMap.meta || rawMap.metadata || {};
+  let sampleCount = rawMap.sampleCount ?? meta.sampleCount ?? null;
+  if (sampleCount == null) {
+    const fallbackCount = center.length || Math.max(left.length, right.length);
+    sampleCount = fallbackCount || null;
+  }
+  const smoothingWindow = rawMap.smoothingWindow ?? meta.smoothingWindow ?? null;
+  const generatedAt = rawMap.generatedAt ?? meta.generatedAt ?? null;
+  const trackName = rawMap.trackName ?? meta.trackName ?? null;
+  const viewBox =
+    normalizeViewBox(rawMap.viewBox) || computeViewBox([left, right, center]);
+
+  return {
+    trackId: rawMap.trackId ?? trackId ?? null,
+    trackName,
+    version: rawMap.version ?? 1,
+    generatedAt,
+    sampleCount,
+    smoothingWindow,
+    left,
+    right,
+    center,
+    viewBox,
+    metadata: { ...meta }
+  };
+}
+
 /**
  * Normalize track name to track ID format.
  * Must match the normalization used in the generator (lapLoader.js).
@@ -54,15 +157,13 @@ export async function loadTrackMap(trackId) {
       throw new Error(`Failed to load track map: ${response.statusText}`);
     }
 
-    const trackMap = await response.json();
-
-    // Validate basic structure
-    if (!trackMap.centerline || !trackMap.leftEdge || !trackMap.rightEdge) {
-      console.error(`Invalid track map structure for ${trackId}`);
+    const rawTrackMap = await response.json();
+    const trackMap = normalizeTrackMapData(rawTrackMap, trackId);
+    if (!trackMap) {
+      trackMapCache.set(trackId, null);
       return null;
     }
 
-    // Cache and return
     trackMapCache.set(trackId, trackMap);
     return trackMap;
   } catch (error) {
@@ -138,7 +239,8 @@ function readPreviewTrackMap(trackId) {
       window.localStorage.removeItem(PREVIEW_STORAGE_KEY);
       return null;
     }
-    return payload.trackMap || null;
+    const normalized = normalizeTrackMapData(payload.trackMap, trackId);
+    return normalized || null;
   } catch {
     return null;
   }

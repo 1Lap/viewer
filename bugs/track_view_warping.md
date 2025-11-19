@@ -1,0 +1,1 @@
+The track view appears to "warp" based on which parts are visible. I'd like it to remain consistent and just have the feeling of "zooming".
