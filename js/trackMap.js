@@ -71,19 +71,14 @@ export async function renderTrackMap(lap) {
 
   const windowStart = uiState.viewWindow?.start ?? lap.samples[0].distance;
   const windowEnd = uiState.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
-  const totalSpan = lap.samples[lap.samples.length - 1].distance - lap.samples[0].distance || 1;
-  const windowSpan = windowEnd - windowStart;
-  const shouldZoom = windowSpan < totalSpan * 0.98;
-  const windowPoints = shouldZoom
-    ? activePoints.filter((p) => p.distance >= windowStart && p.distance <= windowEnd)
-    : activePoints;
-  const drawingPoints = shouldZoom && windowPoints.length >= 2 ? windowPoints : activePoints;
 
+  // Calculate bounds from FULL track extent to prevent warping
+  // This ensures consistent scale and aspect ratio across all zoom levels
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
-  drawingPoints.forEach((p) => {
+  activePoints.forEach((p) => {
     const planeY = getPlanarY(p);
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
@@ -104,13 +99,15 @@ export async function renderTrackMap(lap) {
     });
   }
 
-  if (!shouldZoom && trackMapData) {
+  // Always include track map boundaries to maintain consistent scale
+  if (trackMapData) {
     extendBoundsWithPolyline(trackMapData.left);
     extendBoundsWithPolyline(trackMapData.right);
     extendBoundsWithPolyline(trackMapData.center);
   }
 
-  const expand = shouldZoom ? 0.15 : 0.05;
+  // Use consistent expansion factor to prevent warping during zoom
+  const expand = 0.05;
   const expandX = (maxX - minX) * expand || 1;
   const expandY = (maxY - minY) * expand || 1;
   minX -= expandX;
