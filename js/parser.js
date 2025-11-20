@@ -245,11 +245,10 @@ export function parseLapFile(text, fileName) {
     }
   });
 
-  ['lapDistance', 'lapTime'].forEach((required) => {
-    if (!aliases[required]) {
-      throw new Error(`Missing required column: ${required.toLowerCase()}`);
-    }
-  });
+  // Only lapDistance is required; lapTime can be derived from distance if missing
+  if (!aliases.lapDistance) {
+    throw new Error('Missing required column: lapdistance');
+  }
 
   function getValue(row, keyOrColumn) {
     let column = keyOrColumn;
@@ -263,6 +262,8 @@ export function parseLapFile(text, fileName) {
   }
 
   const samples = [];
+  const hasLapTimeColumn = !!aliases.lapTime;
+
   for (let row = telemetryHeaderIndex + 1; row < lines.length; row++) {
     const line = lines[row];
     if (!line) continue;
@@ -270,8 +271,11 @@ export function parseLapFile(text, fileName) {
     if (values.every((v) => v === '')) continue;
 
     const distance = toNumber(getValue(values, aliases.lapDistance));
-    const time = toNumber(getValue(values, aliases.lapTime));
-    if (distance == null || time == null) continue;
+    if (distance == null) continue;
+
+    // Time is optional - will be derived from distance if column is missing
+    const time = hasLapTimeColumn ? toNumber(getValue(values, aliases.lapTime)) : null;
+    if (hasLapTimeColumn && time == null) continue;
 
     const throttle = toNumber(getValue(values, aliases.throttle));
     const brake = toNumber(getValue(values, aliases.brake));
@@ -304,7 +308,22 @@ export function parseLapFile(text, fileName) {
     throw new Error('No telemetry samples were parsed from the file.');
   }
 
-  samples.sort((a, b) => a.distance - b.distance);
+  // Derive time from distance if lapTime column was missing
+  if (!hasLapTimeColumn) {
+    // Sort by distance first to find the max distance
+    samples.sort((a, b) => a.distance - b.distance);
+    const maxDistance = samples[samples.length - 1].distance;
+
+    // Use metadata lapTime if available, otherwise estimate from sample count
+    const totalLapTime = lapTimeSeconds ?? samples.length * 0.01; // fallback: assume 100Hz sampling
+
+    // Calculate time proportionally: time = (distance / maxDistance) * totalLapTime
+    samples.forEach((sample) => {
+      sample.time = maxDistance > 0 ? (sample.distance / maxDistance) * totalLapTime : 0;
+    });
+  } else {
+    samples.sort((a, b) => a.distance - b.distance);
+  }
   const lapLength = trackLength ?? samples[samples.length - 1].distance ?? null;
   const sectors = deriveSectors(samples, fallbackSectors, lapLength);
   const signature = createLapSignature({
