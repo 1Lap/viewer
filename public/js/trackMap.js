@@ -156,6 +156,7 @@ export async function renderTrackMap(lap) {
 
   // Render embedded track map from CSV (if available)
   if (lap.metadata?.trackMap && Array.isArray(lap.metadata.trackMap)) {
+    console.log('Rendering embedded track map with', lap.metadata.trackMap.length, 'points');
     renderEmbeddedTrackMap(ctx, lap.metadata.trackMap, toCanvasTrackPoint);
   }
 
@@ -285,7 +286,17 @@ function renderTrackLimits(ctx, trackMap, transformPoint) {
  * @param {Function} transformPoint - Transform function (world coords → canvas coords)
  */
 function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
-  if (!trackMapPoints || trackMapPoints.length < 2) return;
+  if (!trackMapPoints || trackMapPoints.length < 2) {
+    console.log('Track map points invalid or too few:', trackMapPoints?.length);
+    return;
+  }
+
+  console.log(
+    'Drawing track map, first point:',
+    trackMapPoints[0],
+    'last point:',
+    trackMapPoints[trackMapPoints.length - 1]
+  );
 
   ctx.save();
   ctx.strokeStyle = '#d1d5db'; // Light grey
@@ -295,9 +306,11 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
   ctx.beginPath();
 
   let hasMove = false;
+  let validPoints = 0;
   trackMapPoints.forEach((point) => {
     const screen = transformPoint(point);
     if (!screen) return;
+    validPoints++;
     if (!hasMove) {
       ctx.moveTo(screen.x, screen.y);
       hasMove = true;
@@ -306,8 +319,11 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
     }
   });
 
+  console.log('Track map: drew', validPoints, 'valid points');
+
   if (hasMove) {
     ctx.stroke();
+    console.log('Track map stroke completed');
   }
 
   ctx.restore();
