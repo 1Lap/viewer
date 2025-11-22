@@ -145,6 +145,8 @@ export function parseLapFile(text, fileName) {
     metadataKeys
   );
 
+  console.log('Metadata overrides extracted:', Object.keys(metadataOverrides));
+
   for (let i = nextIndex; i < lines.length; i++) {
     const raw = lines[i];
     if (!raw) continue;
@@ -216,15 +218,22 @@ export function parseLapFile(text, fileName) {
 
   let trackMapCoordinates = null;
   if (metadataOverrides.trackMap) {
+    console.log('TrackMap field found, raw value length:', metadataOverrides.trackMap.length);
+    console.log('TrackMap first 100 chars:', metadataOverrides.trackMap.substring(0, 100));
     try {
       const parsed = JSON.parse(metadataOverrides.trackMap);
       if (Array.isArray(parsed) && parsed.length > 0) {
         trackMapCoordinates = parsed;
         console.log('Parsed TrackMap field:', parsed.length, 'coordinates');
+      } else {
+        console.log('TrackMap parsed but not a valid array:', typeof parsed);
       }
     } catch (error) {
       console.error('Failed to parse TrackMap field:', error);
+      console.error('Raw value:', metadataOverrides.trackMap.substring(0, 200));
     }
+  } else {
+    console.log('No TrackMap field found in metadata overrides');
   }
 
   const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);
