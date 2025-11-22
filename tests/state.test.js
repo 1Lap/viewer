@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { telemetryState, uiState, getLapColor, resetState, setActiveLapId } from '../js/state.js';
+import { telemetryState, uiState, getLapColor, resetState, setActiveLapId } from '../public/js/state.js';
 
 test('getLapColor cycles palette deterministically', () => {
   resetState();

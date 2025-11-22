@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { updateMetadata } from '../js/metadata.js';
-import { telemetryState, resetState, setActiveLapId } from '../js/state.js';
-import { elements } from '../js/elements.js';
+import { updateMetadata } from '../public/js/metadata.js';
+import { telemetryState, resetState, setActiveLapId } from '../public/js/state.js';
+import { elements } from '../public/js/elements.js';
 
 function stubMetaElements() {
   const createStub = () => ({ textContent: '' });

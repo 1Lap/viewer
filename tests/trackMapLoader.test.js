@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadTrackMap, clearTrackMapCache } from '../js/trackMapLoader.js';
+import { loadTrackMap, clearTrackMapCache } from '../public/js/trackMapLoader.js';
 
 const originalFetch = global.fetch;
 
