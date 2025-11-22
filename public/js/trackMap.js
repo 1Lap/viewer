@@ -291,7 +291,12 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
     return;
   }
 
-  console.log('Drawing track map, first point:', trackMapPoints[0], 'last point:', trackMapPoints[trackMapPoints.length - 1]);
+  console.log(
+    'Drawing track map, first point:',
+    trackMapPoints[0],
+    'last point:',
+    trackMapPoints[trackMapPoints.length - 1]
+  );
 
   ctx.save();
   ctx.strokeStyle = '#d1d5db'; // Light grey
