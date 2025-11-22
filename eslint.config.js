@@ -15,7 +15,7 @@ export default [
     ]
   },
   {
-    files: ['js/**/*.js', 'tests/**/*.js'],
+    files: ['public/js/**/*.js', 'admin/**/*.js', 'tests/**/*.js'],
     languageOptions: {
       sourceType: 'module',
       globals: {
