@@ -130,6 +130,7 @@ export function parseLapFile(text, fileName) {
     version: 'version',
     player: 'player',
     trackname: 'track',
+    carclass: 'carClass',
     carname: 'car',
     sessionutc: 'sessionUtc',
     laptimes: 'lapTime',
