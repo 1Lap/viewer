@@ -106,6 +106,11 @@ export async function renderTrackMap(lap) {
     extendBoundsWithPolyline(trackMapData.center);
   }
 
+  // Include embedded track map from CSV if available
+  if (lap.metadata?.trackMap) {
+    extendBoundsWithPolyline(lap.metadata.trackMap);
+  }
+
   // Use consistent expansion factor to prevent warping during zoom
   const expand = 0.05;
   const expandX = (maxX - minX) * expand || 1;
@@ -147,6 +152,11 @@ export async function renderTrackMap(lap) {
   // Load and render track map (if available)
   if (trackMapData) {
     renderTrackLimits(ctx, trackMapData, toCanvasTrackPoint);
+  }
+
+  // Render embedded track map from CSV (if available)
+  if (lap.metadata?.trackMap && Array.isArray(lap.metadata.trackMap)) {
+    renderEmbeddedTrackMap(ctx, lap.metadata.trackMap, toCanvasTrackPoint);
   }
 
   telemetryState.laps.forEach((lapItem) => {
@@ -263,6 +273,42 @@ function renderTrackLimits(ctx, trackMap, transformPoint) {
   drawPolyline(left, '#6b7280', 1.5, 0.4);
   drawPolyline(right, '#6b7280', 1.5, 0.4);
   drawPolyline(center, '#9ca3af', 1, 0.2, [5, 5]);
+
+  ctx.restore();
+}
+
+/**
+ * Render embedded track map from CSV data.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {Array<Array<number>>} trackMapPoints - Array of [x, y] coordinates
+ * @param {Function} transformPoint - Transform function (world coords → canvas coords)
+ */
+function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
+  if (!trackMapPoints || trackMapPoints.length < 2) return;
+
+  ctx.save();
+  ctx.strokeStyle = '#d1d5db'; // Light grey
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.5;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+
+  let hasMove = false;
+  trackMapPoints.forEach((point) => {
+    const screen = transformPoint(point);
+    if (!screen) return;
+    if (!hasMove) {
+      ctx.moveTo(screen.x, screen.y);
+      hasMove = true;
+    } else {
+      ctx.lineTo(screen.x, screen.y);
+    }
+  });
+
+  if (hasMove) {
+    ctx.stroke();
+  }
 
   ctx.restore();
 }

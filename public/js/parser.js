@@ -23,6 +23,7 @@ import { createLapSignature } from './signature.js';
  * @property {string} driver
  * @property {number|null} lapTime
  * @property {number|null} lapLength
+ * @property {Array<Array<number>>|null} trackMap
  */
 
 /**
@@ -134,7 +135,8 @@ export function parseLapFile(text, fileName) {
     laptimes: 'lapTime',
     laptime: 'lapTime',
     tracklenm: 'trackLen',
-    tracklen: 'trackLen'
+    tracklen: 'trackLen',
+    trackmap: 'trackMap'
   };
 
   const { overrides: metadataOverrides, nextIndex } = extractMetadataOverrides(
@@ -210,6 +212,18 @@ export function parseLapFile(text, fileName) {
   }
   if (metadataOverrides.trackLen != null) {
     trackLength = toNumber(metadataOverrides.trackLen) ?? trackLength;
+  }
+
+  let trackMapCoordinates = null;
+  if (metadataOverrides.trackMap) {
+    try {
+      const parsed = JSON.parse(metadataOverrides.trackMap);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        trackMapCoordinates = parsed;
+      }
+    } catch {
+      // Ignore invalid JSON
+    }
   }
 
   const headerColumns = splitLine(lines[telemetryHeaderIndex], delimiter);
@@ -345,7 +359,8 @@ export function parseLapFile(text, fileName) {
       car: carName || 'Unknown car',
       driver: driverName || '—',
       lapTime: lapTimeSeconds || null,
-      lapLength
+      lapLength,
+      trackMap: trackMapCoordinates
     },
     sectors,
     samples
