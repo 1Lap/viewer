@@ -156,8 +156,29 @@ Track maps are stored in `public/assets/trackmaps/<trackId>.json` where `trackId
 
 ## GitHub Pages Deployment
 
-The site is deployed from the `public/` folder via GitHub Pages. When you push changes:
+The site is deployed from the `public/` folder via GitHub Actions.
 
-- GitHub Pages automatically serves from `public/`
-- Only files in `public/` are accessible on the live site
-- Development files (tests, tools, docs) remain private in the repo
+### How Deployment Works
+
+1. **Automatic deployment**: When you push to the `main` branch, the `.github/workflows/deploy.yml` workflow runs
+2. **Artifact upload**: The workflow uploads only the `public/` folder as a Pages artifact
+3. **Pages deployment**: GitHub Pages serves the content from the uploaded artifact
+4. **Manual deployment**: You can also trigger deployment manually from the Actions tab
+
+### What Gets Deployed
+
+- ✅ Only files in `public/` are deployed and accessible on the live site
+- ❌ Development files (tests, tools, docs, configs) remain private in the repo
+
+### First-Time Setup
+
+If this is a new repository, you need to enable GitHub Pages with Actions:
+
+1. Go to repository Settings → Pages
+2. Under "Source", select **GitHub Actions** (not "Deploy from a branch")
+3. The workflow will automatically deploy on the next push to `main`
+
+### Deployment URL
+
+After deployment, your site will be available at:
+`https://<username>.github.io/<repository>/`
