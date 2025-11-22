@@ -220,9 +220,10 @@ export function parseLapFile(text, fileName) {
       const parsed = JSON.parse(metadataOverrides.trackMap);
       if (Array.isArray(parsed) && parsed.length > 0) {
         trackMapCoordinates = parsed;
+        console.log('Parsed TrackMap field:', parsed.length, 'coordinates');
       }
-    } catch {
-      // Ignore invalid JSON
+    } catch (error) {
+      console.error('Failed to parse TrackMap field:', error);
     }
   }
 
