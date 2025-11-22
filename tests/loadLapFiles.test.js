@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadLapFiles } from '../js/fileLoader.js';
-import { telemetryState, resetState } from '../js/state.js';
+import { loadLapFiles } from '../public/js/fileLoader.js';
+import { telemetryState, resetState } from '../public/js/state.js';
 
 const SAMPLE_FILE = `Player, 1, Jane Doe
 Game,Track,Car,LapTime [s],S1,S2

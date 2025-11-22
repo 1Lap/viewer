@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint \"js/**/*.js\" \"tests/**/*.js\"",
+    "lint": "eslint \"public/js/**/*.js\" \"tests/**/*.js\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test"

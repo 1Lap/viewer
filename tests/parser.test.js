@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseLapFile, formatSeconds } from '../js/parser.js';
+import { parseLapFile, formatSeconds } from '../public/js/parser.js';
 
 const SAMPLE_FILE = `Player, 1, Jane Doe
 Game,Track,Car,LapTime [s],S1,S2
