@@ -299,10 +299,12 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
   );
 
   ctx.save();
-  ctx.strokeStyle = '#d1d5db'; // Light grey
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#9ca3af'; // Medium grey - more visible
+  ctx.lineWidth = 8; // Much thicker stroke to represent ~9m track width
+  ctx.globalAlpha = 0.7; // More opaque
   ctx.setLineDash([]);
+  ctx.lineCap = 'round'; // Smooth rounded ends
+  ctx.lineJoin = 'round'; // Smooth corners
   ctx.beginPath();
 
   let hasMove = false;
