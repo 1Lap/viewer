@@ -186,7 +186,7 @@ export async function renderTrackMap(lap) {
     }
     const normX = (xValue - minX) / rangeX;
     const normY = (yValue - minY) / rangeY;
-    const x = paddingX + (1 - normX) * width;
+    const x = paddingX + normX * width;
     const y = cssHeight - paddingY - normY * height;
     return { x, y };
   }
