@@ -72,19 +72,69 @@ export async function renderTrackMap(lap) {
   const windowStart = uiState.viewWindow?.start ?? lap.samples[0].distance;
   const windowEnd = uiState.viewWindow?.end ?? lap.samples[lap.samples.length - 1].distance;
 
-  // Calculate bounds from FULL track extent to prevent warping
-  // This ensures consistent scale and aspect ratio across all zoom levels
+  // Determine if we're viewing the full lap or a zoomed section
+  const lapStart = lap.samples[0].distance;
+  const lapEnd = lap.metadata.lapLength || lap.samples[lap.samples.length - 1].distance;
+  const lapSpan = lapEnd - lapStart;
+  const tolerance = Math.max(1, lapSpan * 0.01);
+  const isFullLap =
+    Math.abs(windowStart - lapStart) <= tolerance && Math.abs(windowEnd - lapEnd) <= tolerance;
+
+  // Calculate aspect ratio from full track to prevent warping
+  let fullMinX = Infinity;
+  let fullMaxX = -Infinity;
+  let fullMinY = Infinity;
+  let fullMaxY = -Infinity;
+  activePoints.forEach((p) => {
+    const planeY = getPlanarY(p);
+    if (p.x < fullMinX) fullMinX = p.x;
+    if (p.x > fullMaxX) fullMaxX = p.x;
+    if (planeY < fullMinY) fullMinY = planeY;
+    if (planeY > fullMaxY) fullMaxY = planeY;
+  });
+  const fullRangeX = fullMaxX - fullMinX || 1;
+  const fullRangeY = fullMaxY - fullMinY || 1;
+  const fullAspectRatio = fullRangeX / fullRangeY;
+
+  // Filter points to visible window when zoomed
+  const visiblePoints = isFullLap
+    ? activePoints
+    : activePoints.filter((p) => p.distance >= windowStart && p.distance <= windowEnd);
+
+  // Calculate bounds from visible points (or full track if not zoomed)
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
-  activePoints.forEach((p) => {
+  visiblePoints.forEach((p) => {
     const planeY = getPlanarY(p);
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
     if (planeY < minY) minY = planeY;
     if (planeY > maxY) maxY = planeY;
   });
+
+  // When zoomed, expand bounds to maintain full track's aspect ratio
+  // This prevents warping while still providing zoom functionality
+  if (!isFullLap) {
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+    const currentAspect = rangeX / rangeY;
+
+    if (currentAspect > fullAspectRatio) {
+      // Too wide, expand Y
+      const targetRangeY = rangeX / fullAspectRatio;
+      const expandY = (targetRangeY - rangeY) / 2;
+      minY -= expandY;
+      maxY += expandY;
+    } else {
+      // Too tall, expand X
+      const targetRangeX = rangeY * fullAspectRatio;
+      const expandX = (targetRangeX - rangeX) / 2;
+      minX -= expandX;
+      maxX += expandX;
+    }
+  }
 
   function extendBoundsWithPolyline(polyline) {
     if (!Array.isArray(polyline)) return;
@@ -99,16 +149,19 @@ export async function renderTrackMap(lap) {
     });
   }
 
-  // Always include track map boundaries to maintain consistent scale
-  if (trackMapData) {
-    extendBoundsWithPolyline(trackMapData.left);
-    extendBoundsWithPolyline(trackMapData.right);
-    extendBoundsWithPolyline(trackMapData.center);
-  }
+  // Include track map boundaries only when viewing full lap
+  // This prevents the track map from affecting zoom bounds
+  if (isFullLap) {
+    if (trackMapData) {
+      extendBoundsWithPolyline(trackMapData.left);
+      extendBoundsWithPolyline(trackMapData.right);
+      extendBoundsWithPolyline(trackMapData.center);
+    }
 
-  // Include embedded track map from CSV if available
-  if (lap.metadata?.trackMap) {
-    extendBoundsWithPolyline(lap.metadata.trackMap);
+    // Include embedded track map from CSV if available
+    if (lap.metadata?.trackMap) {
+      extendBoundsWithPolyline(lap.metadata.trackMap);
+    }
   }
 
   // Use consistent expansion factor to prevent warping during zoom
