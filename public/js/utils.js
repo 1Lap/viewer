@@ -69,3 +69,42 @@ export function interpolateLapValue(samples, distance, field) {
   const ratio = (distance - lowerSample.distance) / deltaDistance;
   return lowerValue + (upperValue - lowerValue) * ratio;
 }
+
+/**
+ * Remove consecutive duplicate y-values from chart data points.
+ * Keeps first and last point of each constant segment to preserve visual appearance.
+ * @param {Array<{x: number, y: number|null}>} data - Array of {x, y} points
+ * @returns {Array<{x: number, y: number|null}>} Sparse array with duplicate runs reduced
+ */
+export function sparsenData(data) {
+  if (!data || data.length <= 2) return data;
+
+  const result = [data[0]];
+  let runStart = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const prev = data[i - 1];
+    const curr = data[i];
+
+    // Check if y value changed (treating null/undefined as distinct values)
+    const yChanged = prev.y !== curr.y;
+
+    if (yChanged) {
+      // If we had a run of duplicates, keep the last point of that run
+      if (i - 1 > runStart) {
+        result.push(data[i - 1]);
+      }
+      // Start a new run
+      runStart = i;
+      result.push(curr);
+    }
+  }
+
+  // Always include the last point if not already included
+  const lastIdx = data.length - 1;
+  if (result[result.length - 1] !== data[lastIdx]) {
+    result.push(data[lastIdx]);
+  }
+
+  return result;
+}

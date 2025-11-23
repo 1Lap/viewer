@@ -1,7 +1,7 @@
 /* global Chart */
 import { telemetryState, uiState, chartRegistry, getActiveLap, getLapColor } from './state.js';
 import { CHART_BASE_OPTIONS } from './config.js';
-import { formatLapLabel, interpolateLapValue } from './utils.js';
+import { formatLapLabel, interpolateLapValue, sparsenData } from './utils.js';
 
 let setCursorDistance = () => {};
 let setViewWindow = () => {};
@@ -360,7 +360,7 @@ function createBasicDatasetBuilder(sampleKey, labelSuffix = '') {
         cubicInterpolationMode: 'monotone',
         tension: 0.3,
         spanGaps: false,
-        data
+        data: sparsenData(data)
       }
     ];
   };
@@ -382,7 +382,7 @@ function buildGearDatasets(lap) {
       stepped: true,
       fill: 'origin',
       tension: 0,
-      data: gearSamples
+      data: sparsenData(gearSamples)
     }
   ];
 }
@@ -422,7 +422,8 @@ function buildDeltaDatasets(lap) {
 }
 
 function buildZeroLine(samples) {
-  return samples.map((sample) => ({ x: sample.distance, y: 0 }));
+  const data = samples.map((sample) => ({ x: sample.distance, y: 0 }));
+  return sparsenData(data);
 }
 
 function computeDeltaDataset(referenceLap, comparisonLap) {
@@ -446,7 +447,7 @@ function computeDeltaDataset(referenceLap, comparisonLap) {
     if (comparisonTime == null) return;
     result.push({ x: sample.distance, y: comparisonTime - sample.time });
   });
-  return result;
+  return sparsenData(result);
 }
 
 function applyDeltaScale(chart) {
@@ -497,7 +498,7 @@ function buildMaskedThrottleData(samples) {
       sample.distance <= windows[windowIndex].end;
     data.push({ x: sample.distance, y: inWindow ? null : sample.throttle });
   });
-  return data;
+  return sparsenData(data);
 }
 
 function computeShiftWindows(samples, windowSizeMeters) {
