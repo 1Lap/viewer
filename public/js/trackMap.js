@@ -298,10 +298,40 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
     trackMapPoints[trackMapPoints.length - 1]
   );
 
+  // Calculate screen-space scale to determine track width
+  // Assume track is ~10 meters wide in real world
+  const TRACK_WIDTH_METERS = 10;
+
+  // Sample two points to estimate scale
+  const p1 = transformPoint(trackMapPoints[0]);
+  const p2 = transformPoint(trackMapPoints[Math.min(10, trackMapPoints.length - 1)]);
+
+  let trackWidthPixels = 8; // Default fallback
+  if (p1 && p2 && trackMapPoints.length > 10) {
+    // Calculate world-space distance between sample points
+    const worldDx = trackMapPoints[10][0] - trackMapPoints[0][0];
+    const worldDy = trackMapPoints[10][1] - trackMapPoints[0][1];
+    const worldDist = Math.sqrt(worldDx * worldDx + worldDy * worldDy);
+
+    // Calculate screen-space distance
+    const screenDx = p2.x - p1.x;
+    const screenDy = p2.y - p1.y;
+    const screenDist = Math.sqrt(screenDx * screenDx + screenDy * screenDy);
+
+    if (worldDist > 0 && screenDist > 0) {
+      const scale = screenDist / worldDist; // pixels per meter
+      trackWidthPixels = Math.max(4, Math.min(TRACK_WIDTH_METERS * scale, 40));
+    }
+  }
+
   ctx.save();
-  ctx.strokeStyle = '#d1d5db'; // Light grey
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.5;
+
+  // Draw track as dark surface with good visibility
+  ctx.strokeStyle = '#4b5563'; // Dark grey (slate-600)
+  ctx.lineWidth = trackWidthPixels;
+  ctx.globalAlpha = 0.85;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   ctx.setLineDash([]);
   ctx.beginPath();
 
@@ -319,7 +349,13 @@ function renderEmbeddedTrackMap(ctx, trackMapPoints, transformPoint) {
     }
   });
 
-  console.log('Track map: drew', validPoints, 'valid points');
+  console.log(
+    'Track map: drew',
+    validPoints,
+    'valid points with width',
+    trackWidthPixels.toFixed(1),
+    'px'
+  );
 
   if (hasMove) {
     ctx.stroke();
