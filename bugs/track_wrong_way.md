@@ -20,4 +20,6 @@ The y-axis transformation is correct and should remain unchanged.
 
 ## Status
 
-🔧 Fix in progress
+✅ **RESOLVED** - Fixed in commit 605a288
+
+The horizontal flip has been removed from the coordinate projection, and track maps now render in the correct orientation.
