@@ -1,5 +1,4 @@
 import { ensureLapSignature } from './signature.js';
-import { sparsenData } from './utils.js';
 
 const MAX_SHARED_SAMPLES = 1200;
 const DISTANCE_SCALE = 100; // centimeters
@@ -109,61 +108,34 @@ export async function importSharedLap(encoded) {
 }
 
 /**
- * Optimize samples by removing consecutive duplicates per channel,
- * then downsampling if still needed.
+ * Optimize samples using aggressive downsampling.
+ * We target much fewer samples since delta encoding + varint + gzip compress well.
  */
 function optimizeSamples(samples) {
   if (!Array.isArray(samples) || !samples.length) return [];
 
-  // Convert samples to per-channel arrays for sparse processing
-  const channels = {
-    distance: samples.map((s, i) => ({ x: i, y: s.distance })),
-    time: samples.map((s, i) => ({ x: i, y: s.time })),
-    throttle: samples.map((s, i) => ({ x: i, y: s.throttle })),
-    brake: samples.map((s, i) => ({ x: i, y: s.brake })),
-    steer: samples.map((s, i) => ({ x: i, y: s.steer })),
-    speed: samples.map((s, i) => ({ x: i, y: s.speed })),
-    gear: samples.map((s, i) => ({ x: i, y: s.gear })),
-    rpm: samples.map((s, i) => ({ x: i, y: s.rpm })),
-    x: samples.map((s, i) => ({ x: i, y: s.x })),
-    y: samples.map((s, i) => ({ x: i, y: s.y })),
-    z: samples.map((s, i) => ({ x: i, y: s.z }))
-  };
+  // Target 25% of max samples for better compression
+  const targetSamples = Math.floor(MAX_SHARED_SAMPLES * 0.25);
 
-  // Apply sparsenData to each channel
-  const sparseChannels = {};
-  for (const [key, data] of Object.entries(channels)) {
-    sparseChannels[key] = sparsenData(data);
-  }
+  // Aggressive downsampling
+  let optimized = downsampleSamples(samples, targetSamples);
 
-  // Collect all unique indices that are important across any channel
-  const importantIndices = new Set();
-  for (const sparseData of Object.values(sparseChannels)) {
-    for (const point of sparseData) {
-      importantIndices.add(point.x);
-    }
-  }
-
-  // Sort indices and create optimized sample array
-  const sortedIndices = Array.from(importantIndices).sort((a, b) => a - b);
-  let optimized = sortedIndices.map((idx) => samples[idx]);
-
-  // If still too large, apply uniform downsampling
-  if (optimized.length > MAX_SHARED_SAMPLES) {
-    optimized = downsampleSamples(optimized);
-  }
+  console.log(
+    `[Share] Downsampling: ${samples.length} → ${optimized.length} (target: ${targetSamples})`
+  );
 
   return optimized;
 }
 
-function downsampleSamples(samples) {
+function downsampleSamples(samples, targetCount = MAX_SHARED_SAMPLES) {
   if (!Array.isArray(samples) || !samples.length) return [];
-  if (samples.length <= MAX_SHARED_SAMPLES) return samples.slice();
-  const step = Math.ceil(samples.length / MAX_SHARED_SAMPLES);
+  if (samples.length <= targetCount) return samples.slice();
+  const step = Math.ceil(samples.length / targetCount);
   const result = [];
   for (let i = 0; i < samples.length; i += step) {
     result.push(samples[i]);
   }
+  // Always include last sample
   if (result[result.length - 1] !== samples[samples.length - 1]) {
     result.push(samples[samples.length - 1]);
   }
