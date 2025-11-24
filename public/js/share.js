@@ -110,12 +110,13 @@ export async function importSharedLap(encoded) {
 /**
  * Optimize samples using aggressive downsampling.
  * We target much fewer samples since delta encoding + varint + gzip compress well.
+ * Target: <1900 characters total for easy sharing
  */
 function optimizeSamples(samples) {
   if (!Array.isArray(samples) || !samples.length) return [];
 
-  // Target 25% of max samples for better compression
-  const targetSamples = Math.floor(MAX_SHARED_SAMPLES * 0.25);
+  // Ultra-aggressive: target ~100 samples for <1900 char links
+  const targetSamples = 100;
 
   // Aggressive downsampling
   let optimized = downsampleSamples(samples, targetSamples);
@@ -294,7 +295,7 @@ async function compressBytes(bytes) {
       await writer.close();
       const arrayBuffer = await new Response(stream.readable).arrayBuffer();
       return new Uint8Array(arrayBuffer);
-    }, 2000);
+    }, 10000);
     return { bytes: result, compressed: true };
   } catch (error) {
     console.warn('Compression failed, using raw payload.', error);
