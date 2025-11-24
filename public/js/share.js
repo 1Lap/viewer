@@ -1,4 +1,5 @@
 import { ensureLapSignature } from './signature.js';
+import { sparsenData } from './utils.js';
 
 const MAX_SHARED_SAMPLES = 1200;
 const DISTANCE_SCALE = 100; // centimeters
@@ -10,23 +11,19 @@ const RPM_SCALE = 10; // 10 rpm increments
 export async function buildShareLink(lap, windowRange) {
   if (!lap) throw new Error('No lap to share.');
   ensureLapSignature(lap);
-  const downsampled = downsampleSamples(lap.samples);
-  console.log('[Share] Original samples:', lap.samples.length, 'Downsampled:', downsampled.length);
-  const encodedSamples = encodeSamples(downsampled);
+  const optimized = optimizeSamples(lap.samples);
+  console.log('[Share] Original samples:', lap.samples.length, 'Optimized:', optimized.length);
+  const encodedSamples = encodeSamples(optimized);
   console.log('[Share] Encoded byte length:', encodedSamples.length);
   const { bytes: compressedBytes, compressed } = await compressBytes(encodedSamples);
+  const compactMeta = compactMetadata(lap);
   const payload = {
-    v: 1,
-    count: downsampled.length,
-    compressed,
-    window: windowRange || null,
-    meta: {
-      name: lap.name,
-      signature: lap.signature,
-      metadata: lap.metadata,
-      sectors: lap.sectors
-    },
-    data: base64urlEncode(compressedBytes)
+    v: 2,
+    c: optimized.length,
+    z: compressed,
+    w: windowRange || null,
+    m: compactMeta,
+    d: base64urlEncode(compressedBytes)
   };
   const json = JSON.stringify(payload);
   const encodedPayload = base64urlEncode(stringToBytes(json));
@@ -58,26 +55,105 @@ export async function importSharedLap(encoded) {
   if (!encoded) throw new Error('Empty share payload.');
   const jsonBytes = base64urlDecode(encoded);
   const payload = JSON.parse(new TextDecoder().decode(jsonBytes));
-  console.log('[Share] Import payload version:', payload?.v, 'count:', payload?.count);
-  if (!payload?.data || !payload?.count) {
-    throw new Error('Malformed share payload.');
+  const version = payload?.v || 1;
+  console.log('[Share] Import payload version:', version);
+
+  // Handle v1 format (backward compatibility)
+  if (version === 1) {
+    if (!payload?.data || !payload?.count) {
+      throw new Error('Malformed share payload.');
+    }
+    const compressedBytes = base64urlDecode(payload.data);
+    const sampleBytes =
+      payload.compressed === false ? compressedBytes : await decompressBytes(compressedBytes);
+    const samples = decodeSamples(sampleBytes, payload.count);
+    const lap = {
+      id: `shared-${crypto.randomUUID?.() ?? Date.now()}`,
+      name: payload.meta?.name || 'Shared lap',
+      metadata: payload.meta?.metadata || {},
+      sectors: payload.meta?.sectors || [],
+      samples
+    };
+    ensureLapSignature(lap);
+    return {
+      lap,
+      window: payload.window || null
+    };
   }
-  const compressedBytes = base64urlDecode(payload.data);
-  const sampleBytes =
-    payload.compressed === false ? compressedBytes : await decompressBytes(compressedBytes);
-  const samples = decodeSamples(sampleBytes, payload.count);
-  const lap = {
-    id: `shared-${crypto.randomUUID?.() ?? Date.now()}`,
-    name: payload.meta?.name || 'Shared lap',
-    metadata: payload.meta?.metadata || {},
-    sectors: payload.meta?.sectors || [],
-    samples
+
+  // Handle v2 format (optimized)
+  if (version === 2) {
+    if (!payload?.d || !payload?.c) {
+      throw new Error('Malformed share payload.');
+    }
+    const compressedBytes = base64urlDecode(payload.d);
+    const sampleBytes =
+      payload.z === false ? compressedBytes : await decompressBytes(compressedBytes);
+    const samples = decodeSamples(sampleBytes, payload.c);
+    const meta = expandMetadata(payload.m || {});
+    const lap = {
+      id: `shared-${crypto.randomUUID?.() ?? Date.now()}`,
+      name: meta.name || 'Shared lap',
+      metadata: meta.metadata || {},
+      sectors: meta.sectors || [],
+      samples
+    };
+    ensureLapSignature(lap);
+    return {
+      lap,
+      window: payload.w || null
+    };
+  }
+
+  throw new Error(`Unsupported share version: ${version}`);
+}
+
+/**
+ * Optimize samples by removing consecutive duplicates per channel,
+ * then downsampling if still needed.
+ */
+function optimizeSamples(samples) {
+  if (!Array.isArray(samples) || !samples.length) return [];
+
+  // Convert samples to per-channel arrays for sparse processing
+  const channels = {
+    distance: samples.map((s, i) => ({ x: i, y: s.distance })),
+    time: samples.map((s, i) => ({ x: i, y: s.time })),
+    throttle: samples.map((s, i) => ({ x: i, y: s.throttle })),
+    brake: samples.map((s, i) => ({ x: i, y: s.brake })),
+    steer: samples.map((s, i) => ({ x: i, y: s.steer })),
+    speed: samples.map((s, i) => ({ x: i, y: s.speed })),
+    gear: samples.map((s, i) => ({ x: i, y: s.gear })),
+    rpm: samples.map((s, i) => ({ x: i, y: s.rpm })),
+    x: samples.map((s, i) => ({ x: i, y: s.x })),
+    y: samples.map((s, i) => ({ x: i, y: s.y })),
+    z: samples.map((s, i) => ({ x: i, y: s.z }))
   };
-  ensureLapSignature(lap);
-  return {
-    lap,
-    window: payload.window || null
-  };
+
+  // Apply sparsenData to each channel
+  const sparseChannels = {};
+  for (const [key, data] of Object.entries(channels)) {
+    sparseChannels[key] = sparsenData(data);
+  }
+
+  // Collect all unique indices that are important across any channel
+  const importantIndices = new Set();
+  for (const sparseData of Object.values(sparseChannels)) {
+    for (const point of sparseData) {
+      importantIndices.add(point.x);
+    }
+  }
+
+  // Sort indices and create optimized sample array
+  const sortedIndices = Array.from(importantIndices).sort((a, b) => a - b);
+  let optimized = sortedIndices.map((idx) => samples[idx]);
+
+  // If still too large, apply uniform downsampling
+  if (optimized.length > MAX_SHARED_SAMPLES) {
+    optimized = downsampleSamples(optimized);
+  }
+
+  return optimized;
 }
 
 function downsampleSamples(samples) {
@@ -92,6 +168,63 @@ function downsampleSamples(samples) {
     result.push(samples[samples.length - 1]);
   }
   return result;
+}
+
+/**
+ * Compact metadata to reduce payload size - abbreviate keys and omit empty values
+ */
+function compactMetadata(lap) {
+  const meta = {
+    n: lap.name
+  };
+
+  if (lap.signature) {
+    meta.s = lap.signature;
+  }
+
+  // Only include non-empty metadata fields
+  const md = {};
+  if (lap.metadata) {
+    if (lap.metadata.track) md.t = lap.metadata.track;
+    if (lap.metadata.driver) md.d = lap.metadata.driver;
+    if (lap.metadata.car) md.c = lap.metadata.car;
+    if (lap.metadata.session) md.ss = lap.metadata.session;
+    if (lap.metadata.lapTime) md.lt = lap.metadata.lapTime;
+    if (lap.metadata.lapLength) md.ll = lap.metadata.lapLength;
+  }
+  if (Object.keys(md).length > 0) {
+    meta.md = md;
+  }
+
+  // Include sectors if present
+  if (lap.sectors && lap.sectors.length > 0) {
+    meta.sc = lap.sectors;
+  }
+
+  return meta;
+}
+
+/**
+ * Expand compact metadata back to full format
+ */
+function expandMetadata(compactMeta) {
+  const metadata = {};
+
+  if (compactMeta.md) {
+    if (compactMeta.md.t) metadata.track = compactMeta.md.t;
+    if (compactMeta.md.d) metadata.driver = compactMeta.md.d;
+    if (compactMeta.md.c) metadata.car = compactMeta.md.c;
+    if (compactMeta.md.ss) metadata.session = compactMeta.md.ss;
+    if (compactMeta.md.lt) metadata.lapTime = compactMeta.md.lt;
+    if (compactMeta.md.ll) metadata.lapLength = compactMeta.md.ll;
+  }
+
+  return {
+    name: compactMeta.n || 'Shared lap',
+    signature: compactMeta.s || null,
+    metadata,
+    sectors: compactMeta.sc || []
+  };
 }
 
 function quantizeSample(sample) {
